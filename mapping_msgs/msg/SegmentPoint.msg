@@ -1,0 +1,2 @@
+hardware_msgs/IRDists distances
+float32 distFromLastSegment

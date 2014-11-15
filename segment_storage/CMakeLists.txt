@@ -1,12 +1,12 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(segment_storage)
 
-find_package(catkin REQUIRED COMPONENTS roscpp)
+find_package(catkin REQUIRED COMPONENTS roscpp ir_sensors mapping_msgs)
 
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES blobdetection
-#  CATKIN_DEPENDS roscpp image_transport cv_bridge
+  CATKIN_DEPENDS roscpp ir_sensors mapping_msgs
 #  DEPENDS visionutil
 )
 
