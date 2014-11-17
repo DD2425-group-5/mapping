@@ -13,10 +13,13 @@
   <buildtool_depend>catkin</buildtool_depend>
   <build_depend>roscpp</build_depend>
   <run_depend>roscpp</run_depend>
-  <build_depend>ir_sensors</build_depend>
-  <run_depend>ir_sensors</run_depend>
   <build_depend>mapping_msgs</build_depend>
   <run_depend>mapping_msgs</run_depend>
+  <build_depend>rosutil</build_depend>
+  <run_depend>rosutil</run_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <run_depend>geometry_msgs</run_depend>
+
   
   <!-- The export tag contains other, unspecified, tags -->
   <export>
