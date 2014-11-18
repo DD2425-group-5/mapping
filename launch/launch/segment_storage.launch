@@ -1,0 +1,4 @@
+<launch>
+  <rosparam file="$(find project_launch)/config/topic_names.yaml" command="load" />
+  <node name="segment_storage" pkg="segment_storage" type="segment_storage" output="screen" />
+</launch>
