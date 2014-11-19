@@ -35,6 +35,9 @@ SegmentStorage::SegmentStorage(int argc, char *argv[]){
     // Create the rosbag in the segment directory
     segmentBag.open(filePath, rosbag::bagmode::Write);
 
+    // Should we simulate output or use real values?
+    ROSUtil::getParam(handle, "/segment_storage/simulate", simulate);
+
     runNode();
 }
 
@@ -50,8 +53,12 @@ void SegmentStorage::runNode(){
         if (recordSegment){
             // The robot is moving in a straight line, so record points of
             // odometry and IR data
-            addPoint(latestOdom, latestIRDist);
-            //            currentSegment.pointList.push_back(mapping_msgs::SegmentPoint());
+            if (simulate){
+                ROS_INFO("---------- SIMULATED ----------");
+                currentSegment.pointList.push_back(generateSimulatedPoint());
+            } else {
+                addPoint(latestOdom, latestIRDist);
+            }
         }
         loopRate.sleep();
     }
@@ -63,6 +70,29 @@ void SegmentStorage::addPoint(hardware_msgs::Odometry odom, hardware_msgs::IRDis
     p.odometry = odom;
     
     currentSegment.pointList.push_back(p);
+}
+
+mapping_msgs::SegmentPoint SegmentStorage::generateSimulatedPoint(){
+    static float dist = 0;
+    
+    hardware_msgs::Odometry od;
+    od.distanceTotal = dist;
+    od.distanceFromLast = 0.01;
+
+    hardware_msgs::IRDists ir;
+    ir.s0 = 0.1; // front left
+    ir.s1 = 0.4; // front right
+    ir.s2 = 0.1; // back left
+    ir.s3 = 0.4; // back right
+    ir.s4 = 0.0; // cross left
+    ir.s5 = 0.0; // cross right
+
+    dist += 0.01; // move 10cm every step
+    mapping_msgs::SegmentPoint sp;
+    sp.distances = ir;
+    sp.odometry = od;
+    
+    return sp;
 }
 
 void SegmentStorage::saveSegment(mapping_msgs::MapSegment seg){

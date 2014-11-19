@@ -19,6 +19,7 @@ private:
     ros::Subscriber sub_odometry;
     ros::Subscriber sub_controlInfo;
 
+    bool simulate;
     bool recordSegment;
     mapping_msgs::MapSegment currentSegment;
     std::vector<mapping_msgs::MapSegment> segments; // not sure if needed - also storing rosbag
@@ -35,8 +36,9 @@ private:
     
     // main
     void runNode();
-
+    
     // other functions
     void addPoint(hardware_msgs::Odometry odom, hardware_msgs::IRDists ir);
     void saveSegment(mapping_msgs::MapSegment seg);
+    mapping_msgs::SegmentPoint generateSimulatedPoint();
 };
