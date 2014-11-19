@@ -4,6 +4,8 @@ SegmentStorage::SegmentStorage(int argc, char *argv[]){
     ros::init(argc, argv, "segment_storage");
     ros::NodeHandle handle;
 
+    recordSegment = true;
+
     sub_irdist = handle.subscribe("/ir_sensors/dists", 1, &SegmentStorage::irCallback, this);
     sub_odometry = handle.subscribe("/odometry/odometry", 1, &SegmentStorage::odomCallback, this);
     
@@ -31,14 +33,14 @@ SegmentStorage::SegmentStorage(int argc, char *argv[]){
                                        SysUtil::getDateTimeString() + ".bag");
     ROS_INFO("Segments will be saved to %s", filePath.c_str());
     // Create the rosbag in the segment directory
-    bag.open(filePath, rosbag::bagmode::Write);
+    segmentBag.open(filePath, rosbag::bagmode::Write);
 
     runNode();
 }
 
 SegmentStorage::~SegmentStorage(){
     // close the bag whent the destructor is called.
-    bag.close();
+    segmentBag.close();
 }
 
 void SegmentStorage::runNode(){
@@ -49,6 +51,7 @@ void SegmentStorage::runNode(){
             // The robot is moving in a straight line, so record points of
             // odometry and IR data
             addPoint(latestOdom, latestIRDist);
+            //            currentSegment.pointList.push_back(mapping_msgs::SegmentPoint());
         }
         loopRate.sleep();
     }
@@ -63,7 +66,7 @@ void SegmentStorage::addPoint(hardware_msgs::Odometry odom, hardware_msgs::IRDis
 }
 
 void SegmentStorage::saveSegment(mapping_msgs::MapSegment seg){
-    bag.write(segmentTopic, ros::Time::now(), seg);
+    segmentBag.write(segmentTopic, ros::Time::now(), seg);
 }
 
 /**
@@ -92,12 +95,12 @@ void SegmentStorage::odomCallback(const hardware_msgs::Odometry::ConstPtr& msg){
  * This callback controls when segments end and begin.
  */
 void SegmentStorage::turnCallback(const std_msgs::Bool msg){
-    if (msg.data) { // starting turn - end current segment
+    if (msg.data && recordSegment) { // starting turn - end current segment
         ROS_INFO("Ending segment");
         recordSegment = false;
         segments.push_back(currentSegment);
         saveSegment(currentSegment);
-    } else { // turn finished, start new segment
+    } else if (!msg.data && !recordSegment){ // turn finished, start new segment
         ROS_INFO("Starting new segment");
         recordSegment = true;
         mapping_msgs::MapSegment ms;

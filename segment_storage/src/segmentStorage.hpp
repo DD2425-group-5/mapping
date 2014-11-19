@@ -25,7 +25,7 @@ private:
     
     hardware_msgs::Odometry latestOdom;
     hardware_msgs::IRDists latestIRDist;
-    rosbag::Bag bag;
+    rosbag::Bag segmentBag;
     std::string segmentTopic;
     
     // callbacks
