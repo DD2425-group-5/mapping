@@ -15,7 +15,8 @@ private:
     std::vector<mapping_msgs::MapSegment> mapSegments;
 
     void runNode();
-    void extractLinesInSegment(MapSegment segment);
+    void extractLinesInSegment(mapping_msgs::MapSegment segment);
     void segmentPointToMeasurements(mapping_msgs::SegmentPoint pt);
     void stitchSegmentLines();
+    void createOccupancyGrid();
 };
