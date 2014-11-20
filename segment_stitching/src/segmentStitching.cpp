@@ -12,6 +12,8 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
     ROSUtil::getParam(handle, "/segment_stitching/input_file",
                       segmentFile);
 
+    segcloud_pub = handle.advertise<pcl::PointCloud<pcl::PointXYZ> >("/segment_stitching/segcloud", 1);
+
     // Initialise the locations of the IR sensors relative to the centre of the robot.
     populateSensorPositions(handle);
 
@@ -37,6 +39,35 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
     }
 
     ROS_INFO("Number of segments: %d", (int)mapSegments.size());
+
+    runNode();
+}
+
+void SegmentStitching::runNode(){
+    // Go through all the segments, extract measurements, and convert these to lines.
+    for (size_t segment = 0; segment < mapSegments.size(); segment++) {
+        ROS_INFO("Processing segment %d of %d", (int)(segment + 1), (int)(mapSegments.size()));
+        // first, get the set of points which represent the measurements taken
+        // in the segment
+        std::vector<pcl::PointXYZ> measurements = segmentToMeasurements(mapSegments[segment]);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cl(new pcl::PointCloud<pcl::PointXYZ>);
+        // insert the points into the cloud
+        cl->insert(cl->begin(), measurements.begin(), measurements.end());
+        // define the frame for the map
+        // NEED TO PUBLISH THE MAP FRAME!
+        cl->header.frame_id = "map_frame";
+        
+        ros::Rate loop(10);
+        while(ros::ok()){
+            segcloud_pub.publish(cl);
+            ros::spinOnce();
+            loop.sleep();
+        }
+        
+        // Extract the lines from this segment using ransac
+        extractLinesFromMeasurements(measurements);
+    }
+
 }
 
 /**
@@ -50,25 +81,51 @@ void SegmentStitching::populateSensorPositions(ros::NodeHandle handle){
     ROSUtil::getParam(handle, "/robot_info/sensor_x_suffix", xSuffix);
     std::string ySuffix;
     ROSUtil::getParam(handle, "/robot_info/sensor_y_suffix", ySuffix);
+    std::string zSuffix;
+    ROSUtil::getParam(handle, "/robot_info/sensor_z_suffix", zSuffix);
     std::vector<std::string> sensor_names;
     ROSUtil::getParam(handle, "/robot_info/sensor_names", sensor_names);
-
+    
     for (size_t i = 0; i < sensor_names.size(); i++) {
         std::string xOffParam = std::string("/robot_info/" + sensor_names[i] + xSuffix);
         std::string yOffParam = std::string("/robot_info/" + sensor_names[i] + ySuffix);
+        std::string zOffParam = std::string("/robot_info/" + sensor_names[i] + zSuffix);
+        std::string rotParam = std::string("/robot_info/" + sensor_names[i] + "_rotation");
+
         float xoff;
         ROSUtil::getParam(handle, xOffParam, xoff);
         float yoff;
         ROSUtil::getParam(handle, yOffParam, yoff);
-
-        ROS_INFO("%s: (%f, %f)", sensor_names[i].c_str(), xoff, yoff);
-
-        sensorPositions.push_back(pcl::PointXYZ(xoff, yoff, 0));
+        float zoff;
+        ROSUtil::getParam(handle, zOffParam, zoff);
+        float rot;
+        ROSUtil::getParam(handle, rotParam, rot);
+        
+        sensors.push_back(IRSensor(sensor_names[i], xoff, yoff, zoff, rot));
+        ROS_INFO_STREAM(sensors[i]);
+        std::cout << sensor_names[i] << " pcl point: " << sensors[i].asPCLPoint() << std::endl;
     }
 }
 
-void SegmentStitching::runNode(){
-    
+/**
+ * Convert a whole segment into a set of points corresponding to measurements
+ * taken by IR sensors during the motion in the segment.
+ */
+std::vector<pcl::PointXYZ> SegmentStitching::segmentToMeasurements(mapping_msgs::MapSegment segment){
+    // iterate over each point measurement in the segment
+    std::vector<pcl::PointXYZ> measurements;
+    ROS_INFO("Points in segment: %d", (int)segment.pointList.size());
+
+    for (size_t point = 0; point < segment.pointList.size(); point++){
+
+        // convert the IR distances at the point to a useful coordinate space
+        std::vector<pcl::PointXYZ> pointMeasurements = segmentPointToMeasurements(segment.pointList[point]);
+        // add the measurements to the vector that is being accumulated
+        measurements.insert(measurements.end(), pointMeasurements.begin(),
+                            pointMeasurements.end());
+    }
+    ROS_INFO("Measurements in segment: %d", (int)measurements.size());
+    return measurements;
 }
 
 /**
@@ -77,17 +134,36 @@ void SegmentStitching::runNode(){
  * assume that the robot is moving in a perfectly straight line. Assume (0,0) is
  * the robot location at the start of the segment, and then compute the x,y
  * coordinates of where the IR reading is measured according to the sensor
- * positions and distances received.
+ * positions and distances received. Only consider the side facing sensors.
  */
-void SegmentStitching::segmentPointToMeasurements(mapping_msgs::SegmentPoint pt){
+std::vector<pcl::PointXYZ> SegmentStitching::segmentPointToMeasurements(mapping_msgs::SegmentPoint pt){
+    std::vector<pcl::PointXYZ> measurements;
     
+    hardware_msgs::IRDists dists = pt.distances;
+    hardware_msgs::Odometry odom = pt.odometry;
+
+    float distances[6] = {dists.s0, dists.s1, dists.s2, dists.s3, dists.s4, dists.s5};
+    // only look at first 4 sensors, last 2 are front facing, assume either -90 or 90 rotation
+    for (size_t i = 0; i < sensors.size() - 2; i++){
+        IRSensor s = sensors[i];
+        // naive way of getting point measurement - if sensor rotated -90,
+        // subtract from x, otherwise add. The generated points will be rotated
+        // later to match segment rotation if necessary
+        if (s.rotation == -90) { // might be dangerous, rotation is a float
+            distances[i] = -distances[i];
+        }
+        pcl::PointXYZ p = s.asPCLPoint() + pcl::PointXYZ(distances[i], 0, 0);
+        // std::cout << "adding " << s.asPCLPoint() << ", " << pcl::PointXYZ(distances[i], 0, 0) << std::endl;
+        // std::cout << "result: " << p << std::endl;
+        measurements.push_back(p);
+    }
+    return measurements;
 }
 
 /**
- * Use RANSAC to extract the lines in each segment. Need to get line segments,
- * not just the line equations. Return two points representing each line?
+ * Extract lines from a set of points using ransac
  */
-void SegmentStitching::extractLinesInSegment(mapping_msgs::MapSegment segment){
+void SegmentStitching::extractLinesFromMeasurements(std::vector<pcl::PointXYZ> measurements){
     
 }
 

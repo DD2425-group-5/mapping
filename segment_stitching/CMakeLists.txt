@@ -1,13 +1,22 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(segment_stitching)
 
-find_package(catkin REQUIRED COMPONENTS roscpp rosbag mapping_msgs rosutil sysutil pclutil)
+find_package(catkin REQUIRED COMPONENTS 
+                    roscpp
+                    rosbag      
+                    mapping_msgs
+                    rosutil
+                    sysutil
+                    pclutil
+                    pcl_ros
+                    pcl_conversions)
+
 find_package(PCL REQUIRED)
 
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES blobdetection
-  CATKIN_DEPENDS roscpp rosbag mapping_msgs pclutil
+  CATKIN_DEPENDS roscpp rosbag mapping_msgs pclutil pcl_ros pcl_conversions
 #  DEPENDS visionutil
 )
 
