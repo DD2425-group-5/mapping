@@ -4,5 +4,6 @@
   <param name="/segment_stitching/input_file" value="$(arg segfile)" />
   
   <rosparam file="$(find project_launch)/config/topic_names.yaml" command="load" />
+  <rosparam file="$(find project_launch)/config/global_params.yaml" command="load" />
   <node name="segment_stitching" pkg="segment_stitching" type="segment_stitching" args="" output="screen" />
 </launch>

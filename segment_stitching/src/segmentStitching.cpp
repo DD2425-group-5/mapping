@@ -12,6 +12,9 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
     ROSUtil::getParam(handle, "/segment_stitching/input_file",
                       segmentFile);
 
+    // Initialise the locations of the IR sensors relative to the centre of the robot.
+    populateSensorPositions(handle);
+
     // open the bag to read it
     segmentBag.open(segmentFile, rosbag::bagmode::Read);
     
@@ -34,18 +37,37 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
     }
 
     ROS_INFO("Number of segments: %d", (int)mapSegments.size());
-    
-}
-
-void SegmentStitching::runNode(){
-    
 }
 
 /**
- * Use RANSAC to extract the lines in each segment. Need to get line segments,
- * not just the line equations. Return two points representing each line?
+ * Read data from the robot_info parameter and construct the offset coordinates
+ * of the sensors
  */
-void SegmentStitching::extractLinesInSegment(mapping_msgs::MapSegment segment){
+void SegmentStitching::populateSensorPositions(ros::NodeHandle handle){
+    int numSensors;
+    ROSUtil::getParam(handle, "/robot_info/num_sensors", numSensors);
+    std::string xSuffix;
+    ROSUtil::getParam(handle, "/robot_info/sensor_x_suffix", xSuffix);
+    std::string ySuffix;
+    ROSUtil::getParam(handle, "/robot_info/sensor_y_suffix", ySuffix);
+    std::vector<std::string> sensor_names;
+    ROSUtil::getParam(handle, "/robot_info/sensor_names", sensor_names);
+
+    for (size_t i = 0; i < sensor_names.size(); i++) {
+        std::string xOffParam = std::string("/robot_info/" + sensor_names[i] + xSuffix);
+        std::string yOffParam = std::string("/robot_info/" + sensor_names[i] + ySuffix);
+        float xoff;
+        ROSUtil::getParam(handle, xOffParam, xoff);
+        float yoff;
+        ROSUtil::getParam(handle, yOffParam, yoff);
+
+        ROS_INFO("%s: (%f, %f)", sensor_names[i].c_str(), xoff, yoff);
+
+        sensorPositions.push_back(pcl::PointXYZ(xoff, yoff, 0));
+    }
+}
+
+void SegmentStitching::runNode(){
     
 }
 
@@ -58,6 +80,14 @@ void SegmentStitching::extractLinesInSegment(mapping_msgs::MapSegment segment){
  * positions and distances received.
  */
 void SegmentStitching::segmentPointToMeasurements(mapping_msgs::SegmentPoint pt){
+    
+}
+
+/**
+ * Use RANSAC to extract the lines in each segment. Need to get line segments,
+ * not just the line equations. Return two points representing each line?
+ */
+void SegmentStitching::extractLinesInSegment(mapping_msgs::MapSegment segment){
     
 }
 

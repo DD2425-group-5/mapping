@@ -6,8 +6,17 @@ SegmentStorage::SegmentStorage(int argc, char *argv[]){
 
     recordSegment = true;
 
-    sub_irdist = handle.subscribe("/ir_sensors/dists", 1, &SegmentStorage::irCallback, this);
-    sub_odometry = handle.subscribe("/odometry/odometry", 1, &SegmentStorage::odomCallback, this);
+
+    std::string odom_topic;
+    ROSUtil::getParam(handle, "/topic_list/hardware_topics/odometry/published/odometry_topic",
+                      odom_topic);
+    sub_odometry = handle.subscribe(odom_topic, 1, &SegmentStorage::odomCallback, this);
+
+    std::string ir_dist_topic;
+    ROSUtil::getParam(handle, "/topic_list/hardware_topics/ir_sensors/published/ir_distance_topic",
+                      ir_dist_topic);
+    sub_irdist = handle.subscribe(ir_dist_topic, 1, &SegmentStorage::irCallback, this);
+
     
     std::string info_sub_topic;
     ROSUtil::getParam(handle, "/topic_list/controller_topics/motor3/published/bool_topic",
