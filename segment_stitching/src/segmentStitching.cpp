@@ -55,7 +55,7 @@ void SegmentStitching::runNode(){
         cl->insert(cl->begin(), measurements.begin(), measurements.end());
         // define the frame for the map
         // NEED TO PUBLISH THE MAP FRAME!
-        cl->header.frame_id = "map_frame";
+        cl->header.frame_id = "camera_link";
         
         ros::Rate loop(10);
         while(ros::ok()){
@@ -141,8 +141,10 @@ std::vector<pcl::PointXYZ> SegmentStitching::segmentPointToMeasurements(mapping_
     
     hardware_msgs::IRDists dists = pt.distances;
     hardware_msgs::Odometry odom = pt.odometry;
-
+    
     float distances[6] = {dists.s0, dists.s1, dists.s2, dists.s3, dists.s4, dists.s5};
+    // The robot base has moved relative to the start of the segment
+    pcl::PointXYZ odompt(0, odom.distanceTotal, 0);
     // only look at first 4 sensors, last 2 are front facing, assume either -90 or 90 rotation
     for (size_t i = 0; i < sensors.size() - 2; i++){
         IRSensor s = sensors[i];
@@ -152,7 +154,7 @@ std::vector<pcl::PointXYZ> SegmentStitching::segmentPointToMeasurements(mapping_
         if (s.rotation == -90) { // might be dangerous, rotation is a float
             distances[i] = -distances[i];
         }
-        pcl::PointXYZ p = s.asPCLPoint() + pcl::PointXYZ(distances[i], 0, 0);
+        pcl::PointXYZ p = s.asPCLPoint() + odompt + pcl::PointXYZ(distances[i], 0, 0);
         // std::cout << "adding " << s.asPCLPoint() << ", " << pcl::PointXYZ(distances[i], 0, 0) << std::endl;
         // std::cout << "result: " << p << std::endl;
         measurements.push_back(p);
