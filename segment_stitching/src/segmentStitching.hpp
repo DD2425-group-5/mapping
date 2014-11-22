@@ -1,9 +1,13 @@
 #include <ros/ros.h>
 #include <iostream>
+#include <limits>
 #include <rosbag/bag.h>
 #include <rosbag/query.h>
 #include <rosbag/view.h>
 #include <pcl/point_types.h>
+#include <pcl/sample_consensus/ransac.h>
+#include <pcl/sample_consensus/sac_model_line.h>
+#include <pcl/filters/extract_indices.h>
 #include "rosutil/rosutil.hpp"
 #include "sysutil/sysutil.hpp"
 #include "pclutil/pclutil.hpp"
@@ -29,16 +33,22 @@ public:
     float rotation;
 private:
     IRSensor(){}
-    friend std::ostream & operator<<(std::ostream &os, const IRSensor& p);
+    friend std::ostream& operator<<(std::ostream &os, const IRSensor& p);
     pcl::PointXYZ pclpt;
 };
 
-std::ostream & operator<<(std::ostream &os, const IRSensor& s)
+std::ostream& operator<<(std::ostream &os, const IRSensor& s)
 {
     char buffer[200];
     sprintf(buffer, "%s: (%f, %f, %f) rotated %f", s.name.c_str(), s.x, s.y, s.z, s.rotation);
     return os << buffer;
 }
+
+struct Line {
+    Line(pcl::PointXYZ _start, pcl::PointXYZ _end) : start(_start), end(_end){}
+    pcl::PointXYZ start;
+    pcl::PointXYZ end;
+};
 
 class SegmentStitching {
 public:
@@ -47,15 +57,21 @@ private:
     rosbag::Bag segmentBag;
     std::vector<mapping_msgs::MapSegment> mapSegments;
     std::vector<IRSensor> sensors;
+    float ransacThreshold;
 
     ros::Publisher segcloud_pub;
 
     void runNode();
-    void extractLinesFromMeasurements(std::vector<pcl::PointXYZ> measurements);
-    std::vector<pcl::PointXYZ> segmentPointToMeasurements(mapping_msgs::SegmentPoint pt);
-    std::vector<pcl::PointXYZ> segmentToMeasurements(mapping_msgs::MapSegment segment);
+    std::vector<Line> extractLinesFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
+                                      float ransacThreshold);
+    void segmentPointToMeasurements(mapping_msgs::SegmentPoint pt,
+                                    pcl::PointCloud<pcl::PointXYZ>::Ptr measurements);
+    void segmentToMeasurements(mapping_msgs::MapSegment segment,
+                               pcl::PointCloud<pcl::PointXYZ>::Ptr measurements);
     void stitchSegmentLines();
     void createOccupancyGrid();
     void populateSensorPositions(ros::NodeHandle handle);
-
+    void tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl);
 };
+
+    

@@ -3,7 +3,7 @@ project(segment_stitching)
 
 find_package(catkin REQUIRED COMPONENTS 
                     roscpp
-                    rosbag      
+                    rosbag
                     mapping_msgs
                     rosutil
                     sysutil
@@ -23,5 +23,5 @@ catkin_package(
 include_directories(include ${catkin_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})
 
 add_executable(segment_stitching src/segmentStitching.cpp)
-target_link_libraries(segment_stitching ${catkin_LIBRARIES} rosutil sysutil pclutil)
+target_link_libraries(segment_stitching ${catkin_LIBRARIES} ${PCL_LIBRARIES} rosutil sysutil pclutil)
 add_dependencies(segment_stitching ${catkin_EXPORTED_TARGETS})
