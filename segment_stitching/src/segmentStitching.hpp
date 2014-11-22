@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 #include <iostream>
 #include <limits>
+#include <math.h>
 #include <rosbag/bag.h>
 #include <rosbag/query.h>
 #include <rosbag/view.h>
@@ -58,7 +59,10 @@ private:
     std::vector<mapping_msgs::MapSegment> mapSegments;
     std::vector<IRSensor> sensors;
     float ransacThreshold;
-
+   
+    
+    pcl::PointXYZ rotatedStartPoint;
+    pcl::PointXYZ rotatedEndPoint;
     ros::Publisher segcloud_pub;
 
     void runNode();
@@ -70,6 +74,9 @@ private:
                                     pcl::PointCloud<pcl::PointXYZ>::Ptr measurements);
     void segmentToMeasurements(mapping_msgs::MapSegment segment,
                                pcl::PointCloud<pcl::PointXYZ>::Ptr measurements);
+                               
+    
+    Line rotateLine(Line lineToRotate, float angle);
     void stitchSegmentLines();
     void createOccupancyGrid();
     void populateSensorPositions(ros::NodeHandle handle);

@@ -275,6 +275,35 @@ Line SegmentStitching::extractLineFromMeasurements(pcl::PointCloud<pcl::PointXYZ
     }
 }
 
+
+/* rotate a single Line line*/
+Line SegmentStitching::rotateLine(Line lineToRotate, float angle){
+    float angleInRadians = (M_PI*angle)/180.0;
+    
+    
+    //create empty cloud
+    pcl::PointCloud<pcl::PointXYZ>::Ptr lineToRotateAsCloud (new pcl::PointCloud<pcl::PointXYZ> ());
+    pcl::PointCloud<pcl::PointXYZ>::Ptr lineRotatedAsCloud (new pcl::PointCloud<pcl::PointXYZ> ());
+    
+    //push line into the cloud
+    lineToRotateAsCloud->push_back(lineToRotate.start);
+    lineToRotateAsCloud->push_back(lineToRotate.end);
+        
+    //call rotateCloud
+    lineRotatedAsCloud = PCLUtil::rotateCloud(lineToRotateAsCloud, angle);
+    
+    //extract rotated line from rotated cloud
+    pcl::PointCloud<pcl::PointXYZ>::iterator startElement = lineRotatedAsCloud->begin();
+    pcl::PointCloud<pcl::PointXYZ>::iterator endElement = lineRotatedAsCloud->end();
+    Line rotatedLine(*startElement, *endElement);
+    ROS_INFO_STREAM("Extracted rotated point " <<  (int)(startElement -\
+                                                    lineRotatedAsCloud->begin()) << ": " << *startElement);
+    ROS_INFO_STREAM("Extracted rotated point " <<  (int)(endElement - \
+                                                    lineRotatedAsCloud->begin()) << ": " << *endElement);
+    return rotatedLine;
+}
+
+
 /**
  * Combine the lines extracted from segments into a single set of lines which
  * hopefully represent the walls in the maze. The first segment starts at 0,0
