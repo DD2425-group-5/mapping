@@ -15,6 +15,7 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
     ROSUtil::getParam(handle, "/segment_stitching/ransac_threshold", ransacThreshold);
 
     segcloud_pub = handle.advertise<pcl::PointCloud<pcl::PointXYZ> >("/segment_stitching/segcloud", 1);
+    linemarker_pub = handle.advertise<visualization_msgs::Marker>("/segment_stitching/linemarkers", 1);
 
     // Initialise the locations of the IR sensors relative to the centre of the robot.
     populateSensorPositions(handle);
@@ -53,23 +54,54 @@ void SegmentStitching::runNode(){
         // in the segment. 
         pcl::PointCloud<pcl::PointXYZ>::Ptr measurements(new pcl::PointCloud<pcl::PointXYZ>);
         segmentToMeasurements(mapSegments[segment], measurements);
-
         
         // Extract the lines from this segment using ransac. This operation
         // destroys the measurement pointcloud
-        extractLinesFromMeasurements(measurements, ransacThreshold);
+        std::vector<Line> lines = extractLinesFromMeasurements(measurements, ransacThreshold);
+
+        tmpPublish(measurements, lines);
     }
 
 }
 
-void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl){
+void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::vector<Line> lines){
     // define the frame for the map
     // NEED TO PUBLISH THE MAP FRAME!
     cl->header.frame_id = "camera_link";
+    visualization_msgs::Marker marker;
+    marker.header.frame_id = "camera_link";
+    marker.header.stamp = ros::Time();
+    marker.id = 0;
+    marker.ns = "RANSACline";
+    marker.scale.x = 0.01;
+    marker.scale.y = 0.01;
+    marker.scale.z = 0.01;
+    marker.color.a = 1.0;
+    marker.color.r = 0.0;
+    marker.color.g = 1.0;
+    marker.color.b = 0.0;
+
+    marker.type = visualization_msgs::Marker::LINE_LIST;
+    marker.action = visualization_msgs::Marker::ADD;
+    for (size_t i = 0; i < lines.size(); i++){
+        geometry_msgs::Point start;
+        start.x = lines[i].start.x;
+        start.y = lines[i].start.y;
+        start.z = lines[i].start.z;
         
+        geometry_msgs::Point end;
+        end.x = lines[i].end.x;
+        end.y = lines[i].end.y;
+        end.z = lines[i].end.z;
+        marker.points.push_back(start);
+        marker.points.push_back(end);
+        ROS_INFO_STREAM("Line start: " << start << ", line end: " << end);
+    }
+
     ros::Rate loop(10);
     while(ros::ok()){
         segcloud_pub.publish(cl);
+        linemarker_pub.publish(marker);
         ros::spinOnce();
         loop.sleep();
     }
@@ -165,30 +197,58 @@ void SegmentStitching::segmentPointToMeasurements(mapping_msgs::SegmentPoint pt,
  * Extract lines from a set of points using ransac
  */
 std::vector<Line> SegmentStitching::extractLinesFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
-                                                    float ransacThreshold){
+                                                                 float ransacThreshold){
     std::vector<Line> lines;
-    
+    // will pass this vector to ransac to get the line model - we then need to
+    // use it to remove the inliers of the model so that we can process other
+    // lines in the data
+    std::vector<int>* inliers = new std::vector<int>();
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr processing(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr trimmed(new pcl::PointCloud<pcl::PointXYZ>);
+    *processing = *measurements; // copy stuff from the measurement cloud to be processed
+
     // naive: extract two lines from each segment. TODO: extraction of lines
     // based on proportion of points remaining in the cloud once the first line
     // has been removed.
     for (int i = 0; i < 2; i++) {
-        lines.push_back(extractLineFromMeasurements(measurements, ransacThreshold));
+        // ROS_INFO("Trimmed size: %d", (int)trimmed->size());
+        // ROS_INFO("Processing size: %d", (int)processing->size());
+
+        // Extract a line from the measurements, and put the inlier references into inliers.
+        lines.push_back(extractLineFromMeasurements(processing, ransacThreshold, inliers));
+        // ExtractIndices expects a different type than vector, so create that
+        pcl::PointIndices::Ptr inl(new pcl::PointIndices);
+        inl->indices = *inliers;
+
+        // Trim the cloud down to those points which are not the inliers of the
+        // model that was discovered by ransac.
+        pcl::ExtractIndices<pcl::PointXYZ> extract;
+        extract.setInputCloud(processing);
+        extract.setIndices(inl);
+        extract.setNegative(true); // return points which are NOT the indices
+        extract.filter(*trimmed);
+
+        // Update the points to be processed for the next loop
+        *processing = *trimmed;
+    
+        std::cout << lines[i] << std::endl;
     }
 
     return lines;
 }
 
 Line SegmentStitching::extractLineFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
-                                 float ransacThreshold){
-    std::vector<int> inliers;
+                                                   float ransacThreshold,
+                                                   std::vector<int>* inliers){
     // Create the sample consensus object for the received cloud
     pcl::SampleConsensusModelLine<pcl::PointXYZ>::Ptr
         modelLine(new pcl::SampleConsensusModelLine<pcl::PointXYZ>(measurements));
-        
+            
     pcl::RandomSampleConsensus<pcl::PointXYZ> ransac(modelLine);
     ransac.setDistanceThreshold(ransacThreshold);
     ransac.computeModel();
-    ransac.getInliers(inliers);
+    ransac.getInliers(*inliers);
 
     // Vector of 6 points
     // see http://docs.pointclouds.org/trunk/classpcl_1_1_sample_consensus_model_line.html
@@ -198,13 +258,13 @@ Line SegmentStitching::extractLineFromMeasurements(pcl::PointCloud<pcl::PointXYZ
     for (int i = 0; i < coeff.size(); i++){
         ROS_INFO("Coeff %d: %f", i, coeff[i]);
     }
-    ROS_INFO("#Inliers: %d", (int)inliers.size());
+    ROS_INFO("#Inliers: %d", (int)inliers->size());
 
     // Project inliers onto the line so that we end up with a cloud where
     // min+max can be found in order to define a line segment
     pcl::PointCloud<pcl::PointXYZ>::Ptr projected(new pcl::PointCloud<pcl::PointXYZ>);
     // project the inliers onto the model, without copying non-inliers over
-    modelLine->projectPoints(inliers, coeff, *projected, false);
+    modelLine->projectPoints(*inliers, coeff, *projected, false);
     ROS_INFO("Projected size: %d", (int)projected->size());
     pcl::PointCloud<pcl::PointXYZ>::iterator it = projected->begin();
 
@@ -221,31 +281,31 @@ Line SegmentStitching::extractLineFromMeasurements(pcl::PointCloud<pcl::PointXYZ
     float xmin = std::numeric_limits<float>::max();
     float ymin = std::numeric_limits<float>::max();
     for (; it != projected->end(); it++) {
-        ROS_INFO_STREAM("Point " <<  (int)(it - projected->begin()) << ": " << *it);
-        std::cout << "x: " << it->x << ", max: " << xmax << " x bigger? " << (it->x > xmax) << std::endl;
+        // ROS_INFO_STREAM("Point " <<  (int)(it - projected->begin()) << ": " << *it);
+        // std::cout << "x: " << it->x << ", max: " << xmax << " x bigger? " << (it->x > xmax) << std::endl;
         if (it->x > xmax){
             xmax = it->x;
             // index of this point is 
             xmaxInd = it - projected->begin();
-            ROS_INFO("X max ind: %d with val %f", xmaxInd, xmax);
+            //ROS_INFO("X max ind: %d with val %f", xmaxInd, xmax);
         }
         if (it->y > ymax){
             ymax = it->y;
             // index of this point is 
             ymaxInd = it - projected->begin();
-            ROS_INFO("Y max ind: %d with val %f", ymaxInd, ymax);
+            //ROS_INFO("Y max ind: %d with val %f", ymaxInd, ymax);
         }
         if (it->x < xmin){
             xmin = it->x;
             // index of this point is 
             xminInd = it - projected->begin();
-            ROS_INFO("X min ind: %d with val %f", xminInd, xmin);
+            //ROS_INFO("X min ind: %d with val %f", xminInd, xmin);
         }
         if (it->y < ymin){
             ymin = it->y;
             // index of this point is 
             yminInd = it - projected->begin();
-            ROS_INFO("Y min ind: %d with val %f", yminInd, ymin);
+            //ROS_INFO("Y min ind: %d with val %f", yminInd, ymin);
         }
     }
     ROS_INFO("xmin ind %d, xmax ind %d, ymin ind %d, ymax ind %d", 

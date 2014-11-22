@@ -5,6 +5,8 @@
 #include <rosbag/bag.h>
 #include <rosbag/query.h>
 #include <rosbag/view.h>
+#include <geometry_msgs/Point.h>
+#include <visualization_msgs/Marker.h>
 #include <pcl/point_types.h>
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model_line.h>
@@ -49,7 +51,15 @@ struct Line {
     Line(pcl::PointXYZ _start, pcl::PointXYZ _end) : start(_start), end(_end){}
     pcl::PointXYZ start;
     pcl::PointXYZ end;
+    friend std::ostream& operator<<(std::ostream &os, const Line& p);
 };
+
+std::ostream& operator<<(std::ostream &os, const Line& s)
+{
+    os << "Start: " << s.start;
+    os << ", End: " << s.end;
+    return os;
+}
 
 class SegmentStitching {
 public:
@@ -64,12 +74,14 @@ private:
     pcl::PointXYZ rotatedStartPoint;
     pcl::PointXYZ rotatedEndPoint;
     ros::Publisher segcloud_pub;
+    ros::Publisher linemarker_pub;
 
     void runNode();
     std::vector<Line> extractLinesFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
                                                    float ransacThreshold);
     Line extractLineFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
-                                     float ransacThreshold);
+                                     float ransacThreshold,
+                                     std::vector<int>* inliers);
     void segmentPointToMeasurements(mapping_msgs::SegmentPoint pt,
                                     pcl::PointCloud<pcl::PointXYZ>::Ptr measurements);
     void segmentToMeasurements(mapping_msgs::MapSegment segment,
@@ -80,7 +92,7 @@ private:
     void stitchSegmentLines();
     void createOccupancyGrid();
     void populateSensorPositions(ros::NodeHandle handle);
-    void tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl);
+    void tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::vector<Line> lines);
 };
 
     
