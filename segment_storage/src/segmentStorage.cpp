@@ -94,7 +94,7 @@ mapping_msgs::SegmentPoint SegmentStorage::generateSimulatedPoint(){
     ir.s4 = 0.0; // cross left
     ir.s5 = 0.0; // cross right
 
-    dist += 0.01; // move 10cm every step
+    simulatedDist += 0.01; // move 10cm every step
     mapping_msgs::SegmentPoint sp;
     sp.distances = ir;
     sp.odometry = od;
