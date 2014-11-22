@@ -1,6 +1,20 @@
 <launch>
   <arg name="simulate" default="false" />
-  <param name="/segment_storage/simulate" value="$(arg simulate)" />
+  <param name="/segment_storage/simulated/simulate" value="$(arg simulate)" />
+  <!-- Simulation uses Gaussians, define mu and sigma values -->
+  <!-- mean values for the sensor reading to simulate -->
+  <param name="/segment_storage/simulated/s0mu" value="0.1" />
+  <param name="/segment_storage/simulated/s1mu" value="0.4" />
+  <param name="/segment_storage/simulated/s2mu" value="0.1" />
+  <param name="/segment_storage/simulated/s3mu" value="0.4" />
+  <param name="/segment_storage/simulated/distmu" value="0.1" />
+  <!-- standard deviation for the sensors -->
+  <param name="/segment_storage/simulated/s0std" value="0.03" />
+  <param name="/segment_storage/simulated/s1std" value="0.03" />
+  <param name="/segment_storage/simulated/s2std" value="0.03" />
+  <param name="/segment_storage/simulated/s3std" value="0.03" />
+  <param name="/segment_storage/simulated/diststd" value="0.01" />
+
   <rosparam file="$(find project_launch)/config/topic_names.yaml" command="load" />
   <node name="segment_storage" pkg="segment_storage" type="segment_storage" output="screen" />
 </launch>

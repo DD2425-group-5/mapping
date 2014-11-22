@@ -3,6 +3,10 @@ project(segment_storage)
 
 find_package(catkin REQUIRED COMPONENTS roscpp mapping_msgs geometry_msgs rosutil sysutil rosbag)
 
+# flag for c++11
+SET(GCC_COMPILE_FLAGS "-std=c++0x")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${GCC_COMPILE_FLAGS}")
+
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES blobdetection

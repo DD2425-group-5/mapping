@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 #include <ros/console.h>
 #include <rosbag/bag.h>
+#include <random>
 #include <geometry_msgs/Twist.h>
 #include <std_msgs/Bool.h>
 #include "rosutil/rosutil.hpp"
@@ -20,8 +21,16 @@ private:
     ros::Subscriber sub_odometry;
     ros::Subscriber sub_controlInfo;
 
+    // simulation
+    std::default_random_engine generator;
     bool simulate;
     float simulatedDist;
+    float s0mu, s0std;
+    float s1mu, s1std;
+    float s2mu, s2std;
+    float s3mu, s3std;
+    float distmu, diststd;
+
     bool recordSegment;
     mapping_msgs::MapSegment currentSegment;
     std::vector<mapping_msgs::MapSegment> segments; // not sure if needed - also storing rosbag
@@ -42,5 +51,6 @@ private:
     // other functions
     void addPoint(hardware_msgs::Odometry odom, hardware_msgs::IRDists ir);
     void saveSegment(mapping_msgs::MapSegment seg);
+    void endSegment(float turnDegrees);
     mapping_msgs::SegmentPoint generateSimulatedPoint();
 };

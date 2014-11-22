@@ -32,6 +32,23 @@ SegmentStorage::SegmentStorage(int argc, char *argv[]){
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_storage/segment_save_dir",
                       segment_save_dir);
 
+    // Should we simulate output or use real values?
+    ROSUtil::getParam(handle, "/segment_storage/simulated/simulate", simulate);
+
+    if (simulate){
+        ROSUtil::getParam(handle, "/segment_storage/simulated/s0mu", s0mu);
+        ROSUtil::getParam(handle, "/segment_storage/simulated/s1mu", s1mu);
+        ROSUtil::getParam(handle, "/segment_storage/simulated/s2mu", s2mu);
+        ROSUtil::getParam(handle, "/segment_storage/simulated/s3mu", s3mu);
+        ROSUtil::getParam(handle, "/segment_storage/simulated/distmu", distmu);
+
+        ROSUtil::getParam(handle, "/segment_storage/simulated/s0std", s0std);
+        ROSUtil::getParam(handle, "/segment_storage/simulated/s1std", s1std);
+        ROSUtil::getParam(handle, "/segment_storage/simulated/s2std", s2std);
+        ROSUtil::getParam(handle, "/segment_storage/simulated/s3std", s3std);
+        ROSUtil::getParam(handle, "/segment_storage/simulated/diststd", diststd);
+    }
+
     // Create the directory in which segments will be saved, if it does not exist
     if (!SysUtil::isDir(segment_save_dir)){
         SysUtil::makeDir(segment_save_dir);
@@ -44,18 +61,17 @@ SegmentStorage::SegmentStorage(int argc, char *argv[]){
     // Create the rosbag in the segment directory
     segmentBag.open(filePath, rosbag::bagmode::Write);
 
-    // Should we simulate output or use real values?
-    ROSUtil::getParam(handle, "/segment_storage/simulate", simulate);
-
     runNode();
 }
 
 SegmentStorage::~SegmentStorage(){
     // close the bag whent the destructor is called.
+    endSegment(0);
     segmentBag.close();
 }
 
 void SegmentStorage::runNode(){
+    ROS_INFO("Starting segment recording.");
     ros::Rate loopRate(10);
     while (ros::ok()){
         ros::spinOnce();
@@ -82,19 +98,27 @@ void SegmentStorage::addPoint(hardware_msgs::Odometry odom, hardware_msgs::IRDis
 }
 
 mapping_msgs::SegmentPoint SegmentStorage::generateSimulatedPoint(){
+    std::normal_distribution<double> s0(s0mu,s0std);
+    std::normal_distribution<double> s1(s1mu,s1std);
+    std::normal_distribution<double> s2(s2mu,s2std);
+    std::normal_distribution<double> s3(s3mu,s3std);
+    std::normal_distribution<double> dist(distmu, diststd);
+    
     hardware_msgs::Odometry od;
     od.distanceTotal = simulatedDist;
-    od.distanceFromLast = 0.01;
 
+    float moved = dist(generator);
+    od.distanceFromLast = moved;
+    simulatedDist += moved;
+    
     hardware_msgs::IRDists ir;
-    ir.s0 = 0.1; // front left
-    ir.s1 = 0.4; // front right
-    ir.s2 = 0.1; // back left
-    ir.s3 = 0.4; // back right
+    ir.s0 = s0(generator); // front left
+    ir.s1 = s1(generator); // front right
+    ir.s2 = s2(generator); // back left
+    ir.s3 = s3(generator); // back rigth
     ir.s4 = 0.0; // cross left
     ir.s5 = 0.0; // cross right
 
-    simulatedDist += 0.01; // move 10cm every step
     mapping_msgs::SegmentPoint sp;
     sp.distances = ir;
     sp.odometry = od;
@@ -133,29 +157,33 @@ void SegmentStorage::odomCallback(const hardware_msgs::Odometry::ConstPtr& msg){
  */
 void SegmentStorage::turnCallback(const controller_msgs::Turning msg){
     if (msg.isTurning && recordSegment) { // starting turn - end current segment
-        ROS_INFO("Ending segment");
-        recordSegment = false;
-		if(msg.degrees == 90.0){
-			currentSegment.turnDirection = currentSegment.LEFT_TURN;
-		}
-		else if(msg.degrees == -90.0){
-			currentSegment.turnDirection = currentSegment.RIGHT_TURN;
-		}
-		else if(msg.degrees == 180.0){
-			currentSegment.turnDirection = currentSegment.U_TURN;
-		}
-        segments.push_back(currentSegment);
-        saveSegment(currentSegment);
-        if (simulate){
-            // reset the simulated distance on odometry for each segment to
-            // mirror real behaviour
-            simulatedDist = 0;
-        }
+        endSegment(msg.degrees);
     } else if (!msg.isTurning && !recordSegment){ // turn finished, start new segment
         ROS_INFO("Starting new segment");
         recordSegment = true;
         mapping_msgs::MapSegment ms;
         currentSegment = ms;
+    }
+}
+
+void SegmentStorage::endSegment(float turnDegrees){
+    ROS_INFO("Ending segment");
+    recordSegment = false;
+    if(turnDegrees == 90.0){
+        currentSegment.turnDirection = currentSegment.LEFT_TURN;
+    }
+    else if(turnDegrees == -90.0){
+        currentSegment.turnDirection = currentSegment.RIGHT_TURN;
+    }
+    else if(turnDegrees == 180.0){
+        currentSegment.turnDirection = currentSegment.U_TURN;
+    }
+    segments.push_back(currentSegment);
+    saveSegment(currentSegment);
+    if (simulate){
+        // reset the simulated distance on odometry for each segment to
+        // mirror real behaviour
+        simulatedDist = 0;
     }
 }
 
