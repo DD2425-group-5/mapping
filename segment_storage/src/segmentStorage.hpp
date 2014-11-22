@@ -9,6 +9,7 @@
 #include "hardware_msgs/Odometry.h"
 #include "mapping_msgs/MapSegment.h"
 #include "mapping_msgs/SegmentPoint.h"
+#include "controller_msgs/Turning.h"
 
 class SegmentStorage {
 public:
@@ -33,7 +34,7 @@ private:
     // callbacks
     void irCallback(const hardware_msgs::IRDists::ConstPtr& msg);
     void odomCallback(const hardware_msgs::Odometry::ConstPtr& msg);
-    void turnCallback(const std_msgs::Bool msg);
+    void turnCallback(const controller_msgs::Turning msg);
     
     // main
     void runNode();

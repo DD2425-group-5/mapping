@@ -19,7 +19,7 @@ SegmentStorage::SegmentStorage(int argc, char *argv[]){
 
     
     std::string info_sub_topic;
-    ROSUtil::getParam(handle, "/topic_list/controller_topics/motor3/published/bool_topic",
+    ROSUtil::getParam(handle, "/topic_list/controller_topics/wallfollower/published/turning_topic",
                       info_sub_topic);
     sub_controlInfo = handle.subscribe(info_sub_topic, 1000, &SegmentStorage::turnCallback, this);
     
@@ -131,10 +131,19 @@ void SegmentStorage::odomCallback(const hardware_msgs::Odometry::ConstPtr& msg){
  *
  * This callback controls when segments end and begin.
  */
-void SegmentStorage::turnCallback(const std_msgs::Bool msg){
-    if (msg.data && recordSegment) { // starting turn - end current segment
+void SegmentStorage::turnCallback(const controller_msgs::Turning msg){
+    if (msg.isTurning && recordSegment) { // starting turn - end current segment
         ROS_INFO("Ending segment");
         recordSegment = false;
+		if(msg.degrees == 90.0){
+			currentSegment.turnDirection = currentSegment.LEFT_TURN;
+		}
+		else if(msg.degrees == -90.0){
+			currentSegment.turnDirection = currentSegment.RIGHT_TURN;
+		}
+		else if(msg.degrees == 180.0){
+			currentSegment.turnDirection = currentSegment.U_TURN;
+		}
         segments.push_back(currentSegment);
         saveSegment(currentSegment);
         if (simulate){
@@ -142,7 +151,7 @@ void SegmentStorage::turnCallback(const std_msgs::Bool msg){
             // mirror real behaviour
             simulatedDist = 0;
         }
-    } else if (!msg.data && !recordSegment){ // turn finished, start new segment
+    } else if (!msg.isTurning && !recordSegment){ // turn finished, start new segment
         ROS_INFO("Starting new segment");
         recordSegment = true;
         mapping_msgs::MapSegment ms;
