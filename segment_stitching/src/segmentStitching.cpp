@@ -167,6 +167,7 @@ void SegmentStitching::segmentPointToMeasurements(mapping_msgs::SegmentPoint pt,
 std::vector<Line> SegmentStitching::extractLinesFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
                                                     float ransacThreshold){
     
+    std::vector<Line> lines;
     std::vector<int> inliers;
     // Create the sample consensus object for the received cloud
     pcl::SampleConsensusModelLine<pcl::PointXYZ>::Ptr
@@ -234,14 +235,34 @@ std::vector<Line> SegmentStitching::extractLinesFromMeasurements(pcl::PointCloud
             yminInd = it - projected->begin();
             ROS_INFO("Y min ind: %d with val %f", yminInd, ymin);
         }
-
-
     }
     ROS_INFO("xmin ind %d, xmax ind %d, ymin ind %d, ymax ind %d", 
-             xminInd, xmaxInd, ymaxInd, yminInd);
+             xminInd, xmaxInd, yminInd, ymaxInd);
     ROS_INFO("xmin %f, xmax %f, ymin %f, ymax %f", 
              xmin, xmax, ymin, ymax);
 
+    // If the x or y coordinates are identical, then you have a vertical or
+    // horizontal line - define start and end points of the line with the value
+    // of xmin or max, and then assign values for the other coordinate to the
+    // start and end point arbitrarily. You should be able to do this min/max
+    // comparison based on the indices of xmin and xmax - they should be the same
+    // if lines are horizontal or vertical
+    if (xminInd == xmaxInd){
+        lines.push_back(Line(pcl::PointXYZ(xmin, ymin), pcl::PointXYZ(xmin, ymax)));
+    } else if (yminInd == ymaxInd){
+        lines.push_back(Line(pcl::PointXYZ(xmin, ymin), pcl::PointXYZ(xmax, ymin)));
+    } else {
+        // TODO: Make sure this works correctly
+        // This is a line which is not horizontal or vertical - the indices of
+        // xmin,ymin or xmax, ymax should match. 
+        if (xminInd == yminInd && xmaxInd == ymaxInd){
+            lines.push_back(Line(pcl::PointXYZ(xmin, ymin), pcl::PointXYZ(xmax, ymax)));
+        } else if (xmaxInd == yminInd && xminInd == ymaxInd){
+            lines.push_back(Line(pcl::PointXYZ(xmax, ymin), pcl::PointXYZ(xmin, ymax)));
+        }
+    }
+
+    return lines;
 }
 
 /**
