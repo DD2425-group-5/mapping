@@ -166,8 +166,20 @@ void SegmentStitching::segmentPointToMeasurements(mapping_msgs::SegmentPoint pt,
  */
 std::vector<Line> SegmentStitching::extractLinesFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
                                                     float ransacThreshold){
-    
     std::vector<Line> lines;
+    
+    // naive: extract two lines from each segment. TODO: extraction of lines
+    // based on proportion of points remaining in the cloud once the first line
+    // has been removed.
+    for (int i = 0; i < 2; i++) {
+        lines.push_back(extractLineFromMeasurements(measurements, ransacThreshold));
+    }
+
+    return lines;
+}
+
+Line SegmentStitching::extractLineFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
+                                 float ransacThreshold){
     std::vector<int> inliers;
     // Create the sample consensus object for the received cloud
     pcl::SampleConsensusModelLine<pcl::PointXYZ>::Ptr
@@ -248,21 +260,19 @@ std::vector<Line> SegmentStitching::extractLinesFromMeasurements(pcl::PointCloud
     // comparison based on the indices of xmin and xmax - they should be the same
     // if lines are horizontal or vertical
     if (xminInd == xmaxInd){
-        lines.push_back(Line(pcl::PointXYZ(xmin, ymin), pcl::PointXYZ(xmin, ymax)));
+        return Line(pcl::PointXYZ(xmin, ymin, 0), pcl::PointXYZ(xmin, ymax, 0));
     } else if (yminInd == ymaxInd){
-        lines.push_back(Line(pcl::PointXYZ(xmin, ymin), pcl::PointXYZ(xmax, ymin)));
+        return Line(pcl::PointXYZ(xmin, ymin, 0), pcl::PointXYZ(xmax, ymin, 0));
     } else {
         // TODO: Make sure this works correctly
         // This is a line which is not horizontal or vertical - the indices of
         // xmin,ymin or xmax, ymax should match. 
         if (xminInd == yminInd && xmaxInd == ymaxInd){
-            lines.push_back(Line(pcl::PointXYZ(xmin, ymin), pcl::PointXYZ(xmax, ymax)));
+            return Line(pcl::PointXYZ(xmin, ymin, 0), pcl::PointXYZ(xmax, ymax, 0));
         } else if (xmaxInd == yminInd && xminInd == ymaxInd){
-            lines.push_back(Line(pcl::PointXYZ(xmax, ymin), pcl::PointXYZ(xmin, ymax)));
+            return Line(pcl::PointXYZ(xmax, ymin, 0), pcl::PointXYZ(xmin, ymax, 0));
         }
     }
-
-    return lines;
 }
 
 /**

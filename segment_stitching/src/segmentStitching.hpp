@@ -63,7 +63,9 @@ private:
 
     void runNode();
     std::vector<Line> extractLinesFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
-                                      float ransacThreshold);
+                                                   float ransacThreshold);
+    Line extractLineFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
+                                     float ransacThreshold);
     void segmentPointToMeasurements(mapping_msgs::SegmentPoint pt,
                                     pcl::PointCloud<pcl::PointXYZ>::Ptr measurements);
     void segmentToMeasurements(mapping_msgs::MapSegment segment,
