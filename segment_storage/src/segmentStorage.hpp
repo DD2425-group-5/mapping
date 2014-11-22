@@ -20,6 +20,7 @@ private:
     ros::Subscriber sub_controlInfo;
 
     bool simulate;
+    float simulatedDist;
     bool recordSegment;
     mapping_msgs::MapSegment currentSegment;
     std::vector<mapping_msgs::MapSegment> segments; // not sure if needed - also storing rosbag

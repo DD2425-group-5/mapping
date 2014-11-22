@@ -82,10 +82,8 @@ void SegmentStorage::addPoint(hardware_msgs::Odometry odom, hardware_msgs::IRDis
 }
 
 mapping_msgs::SegmentPoint SegmentStorage::generateSimulatedPoint(){
-    static float dist = 0;
-    
     hardware_msgs::Odometry od;
-    od.distanceTotal = dist;
+    od.distanceTotal = simulatedDist;
     od.distanceFromLast = 0.01;
 
     hardware_msgs::IRDists ir;
@@ -139,6 +137,11 @@ void SegmentStorage::turnCallback(const std_msgs::Bool msg){
         recordSegment = false;
         segments.push_back(currentSegment);
         saveSegment(currentSegment);
+        if (simulate){
+            // reset the simulated distance on odometry for each segment to
+            // mirror real behaviour
+            simulatedDist = 0;
+        }
     } else if (!msg.data && !recordSegment){ // turn finished, start new segment
         ROS_INFO("Starting new segment");
         recordSegment = true;
