@@ -98,7 +98,6 @@ private:
                                     pcl::PointCloud<pcl::PointXYZ>::Ptr measurements);
     void segmentToMeasurements(mapping_msgs::MapSegment segment,
                                pcl::PointCloud<pcl::PointXYZ>::Ptr measurements);
-                               
     
     Line rotateLine(Line lineToRotate, float angle);
     std::vector<std::vector<Line> > stitchSegmentLines(std::vector<std::vector<Line> > linesInSegments);

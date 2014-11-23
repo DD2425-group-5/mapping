@@ -490,15 +490,6 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
 	return stitchedLines;
 }
 
-/**
- * Create an occupancy grid from the stitched lines. Once these are extracted it
- * should be possible to simply travel along the line with a small step, and
- * populate all the points in the occupancy grid that the line passes through.
- */
-void SegmentStitching::createOccupancyGrid(){
-}
-
-
 int main(int argc, char *argv[])
 {
     SegmentStitching stitch(argc, argv);
