@@ -16,5 +16,7 @@ private:
     void runNode();
     void lineCallback(const mapping_msgs::LineVector& msg);
 
-    std::pair<float, float> findGridSize(mapping_msgs::LineVector lines);
+    std::pair<float, float> findLineBoundSize(mapping_msgs::LineVector lines);
+    
+    
 };

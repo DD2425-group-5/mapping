@@ -1,0 +1,7 @@
+<launch>
+  <!-- Define the width and height of each cell in the occupancy grid, in m -->
+  <arg name="grid_resolution" default="0.05" />
+  <param name="/map_representation/grid_resolution" value="$(arg grid_resolution)" />
+  <rosparam file="$(find project_launch)/config/topic_names.yaml" command="load" />
+  <node name="map_representation" pkg="map_representation" type="map_representation" output="screen" />
+</launch>

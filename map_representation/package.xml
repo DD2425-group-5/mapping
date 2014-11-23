@@ -22,7 +22,6 @@
   <build_depend>rosutil</build_depend>
   <run_depend>rosutil</run_depend>
 
-
   <export>
   </export>
 </package>

@@ -7,6 +7,9 @@ MapRepresentation::MapRepresentation(int argc, char *argv[]){
     std::string lineTopic;
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/stitched_line_topic",
                       lineTopic);
+    
+    ROSUtil::getParam(handle, "/map_representation/grid_resolution", grid.info.resolution);
+
     line_sub = handle.subscribe(lineTopic, 1, &MapRepresentation::lineCallback, this);
 }
 
@@ -15,11 +18,12 @@ void MapRepresentation::runNode(){
 }
 
 void MapRepresentation::lineCallback(const mapping_msgs::LineVector& msg){
-    
+    lines = msg;
 }
 
-std::pair<float, float> findGridSize(mapping_msgs::LineVector lineVec) {
+std::pair<float, float> findLineBoundSize(mapping_msgs::LineVector lineVec) {
     std::vector<mapping_msgs::Line> lines=lineVec.lines;
+
     float minX = 0;
     float maxX = 0;
     float minY = 0;
@@ -31,8 +35,7 @@ std::pair<float, float> findGridSize(mapping_msgs::LineVector lineVec) {
             if (lines[lineIterator].start.x < minX){
                 minX = lines[lineIterator].start.x;
             }
-        }
-        else{//end has smaller X
+        } else {//end has smaller X
             if (lines[lineIterator].end.x < minX){
                 minX = lines[lineIterator].end.x;
             }
@@ -44,22 +47,20 @@ std::pair<float, float> findGridSize(mapping_msgs::LineVector lineVec) {
             if (lines[lineIterator].start.y < minY){
                 minY = lines[lineIterator].start.y;
             }
-        }
-        else{//end has smaller Y
+        } else {//end has smaller Y
             if (lines[lineIterator].end.y < minY){
                 minY = lines[lineIterator].end.y;
             }
         }
         
         
-         //find max X
+        //find max X
         if (lines[lineIterator].start.x > lines[lineIterator].end.x){
             //start has bigger X
             if (lines[lineIterator].start.x > maxX){
                 maxX = lines[lineIterator].start.x;
             }
-        }
-        else{//end has bigger X
+        } else {//end has bigger X
             if (lines[lineIterator].end.x > maxX){
                 maxX = lines[lineIterator].end.x;
             }
@@ -71,8 +72,7 @@ std::pair<float, float> findGridSize(mapping_msgs::LineVector lineVec) {
             if (lines[lineIterator].start.y > maxY){
                 maxY = lines[lineIterator].start.y;
             }
-        }
-        else{//end has bigger Y
+        } else {//end has bigger Y
             if (lines[lineIterator].end.y > maxY){
                 maxY = lines[lineIterator].end.y;
             }
@@ -80,7 +80,8 @@ std::pair<float, float> findGridSize(mapping_msgs::LineVector lineVec) {
     }
     
     float L1normX = maxX - minX;
-    float L1normY = maxY - minY;   
+    float L1normY = maxY - minY;
+
     return std::pair<float ,float> (L1normX, L1normY);
 }
 
