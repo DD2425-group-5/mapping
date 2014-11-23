@@ -104,6 +104,8 @@ private:
     void populateSensorPositions(ros::NodeHandle handle);
     void publishFinalLines(std::vector<std::vector<Line> > lines);
     void tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::vector<Line> lines);
+    void publishLineMarkers(std::vector<Line> lines, std::string markerRef);
+    void publishCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cl);
 };
 
     
