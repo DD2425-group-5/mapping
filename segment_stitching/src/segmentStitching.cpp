@@ -17,6 +17,11 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
     segcloud_pub = handle.advertise<pcl::PointCloud<pcl::PointXYZ> >("/segment_stitching/segcloud", 1);
     linemarker_pub = handle.advertise<visualization_msgs::Marker>("/segment_stitching/linemarkers", 1);
 
+    std::string lineTopic;
+    ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/stitched_line_topic",
+                      lineTopic);
+    stitched_pub = handle.advertise<mapping_msgs::LineVector>(lineTopic, 1);
+
     // Initialise the locations of the IR sensors relative to the centre of the robot.
     populateSensorPositions(handle);
 
@@ -107,6 +112,18 @@ void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::v
         ros::spinOnce();
         loop.sleep();
     }
+}
+
+void SegmentStitching::publishFinalLines(std::vector<std::vector<Line> > lines){
+    mapping_msgs::LineVector lv;
+    
+    for (size_t i = 0; i < lines.size(); i++) {
+        for (size_t j = 0; j < lines[i].size(); j++){
+            mapping_msgs::Line l = lines[i][j];
+            l.id = i; // id corresponds to the segment the line came from
+        }
+    }
+    stitched_pub.publish(lv);
 }
 
 /**
@@ -340,7 +357,7 @@ Line SegmentStitching::extractLineFromMeasurements(pcl::PointCloud<pcl::PointXYZ
 
 /* rotate a single Line line*/
 Line SegmentStitching::rotateLine(Line lineToRotate, float angle){
-    float angleInRadians = (M_PI*angle)/180.0;
+    //float angleInRadians = (M_PI*angle)/180.0;
     
     
     //create empty cloud
@@ -408,16 +425,9 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
             
         }
     }
-}
 
-/**
- * Create an occupancy grid from the stitched lines. Once these are extracted it
- * should be possible to simply travel along the line with a small step, and
- * populate all the points in the occupancy grid that the line passes through.
- */
-void SegmentStitching::createOccupancyGrid(){
+    return stitchedLines;
 }
-
 
 int main(int argc, char *argv[])
 {

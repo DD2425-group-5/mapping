@@ -16,6 +16,8 @@
 #include "pclutil/pclutil.hpp"
 #include "mapping_msgs/MapSegment.h"
 #include "mapping_msgs/SegmentPoint.h"
+#include "mapping_msgs/Line.h"
+#include "mapping_msgs/LineVector.h"
 
 class IRSensor {
 public:
@@ -51,8 +53,17 @@ struct Line {
     Line(pcl::PointXYZ _start, pcl::PointXYZ _end) : start(_start), end(_end){}
     pcl::PointXYZ start;
     pcl::PointXYZ end;
+
+    operator mapping_msgs::Line() const{
+        mapping_msgs::Line l;
+        l.start = PCLUtil::pclToGeomPoint(start);
+        l.end = PCLUtil::pclToGeomPoint(end);
+        return l;
+    }
+
     friend std::ostream& operator<<(std::ostream &os, const Line& p);
 };
+
 
 std::ostream& operator<<(std::ostream &os, const Line& s)
 {
@@ -75,6 +86,7 @@ private:
     pcl::PointXYZ rotatedEndPoint;
     ros::Publisher segcloud_pub;
     ros::Publisher linemarker_pub;
+    ros::Publisher stitched_pub;
 
     void runNode();
     std::vector<Line> extractLinesFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
@@ -89,9 +101,9 @@ private:
                                
     
     Line rotateLine(Line lineToRotate, float angle);
-    void stitchSegmentLines(std::vector<std::vector<Line> > linesInSegments);
-    void createOccupancyGrid();
+    std::vector<std::vector<Line> > stitchSegmentLines(std::vector<std::vector<Line> > linesInSegments);
     void populateSensorPositions(ros::NodeHandle handle);
+    void publishFinalLines(std::vector<std::vector<Line> > lines);
     void tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::vector<Line> lines);
 };
 
