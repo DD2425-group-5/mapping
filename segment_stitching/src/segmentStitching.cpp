@@ -407,6 +407,7 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
 	float yStart=0;	// start y poistion of line
 	int xDir=1;		// direction x
 	int yDir=0;		// direction y
+	float rotation=0.0;
 	/*float xEnd=0;
 	float yEnd=0;*/
 	
@@ -426,6 +427,11 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
         if (i == 0) {
             // for the first segment, there is no need to modify the end point
             segmentPointChain.push_back(segmentEndPoint);
+			std::vector<Line> tmpLines;
+			for(int j = 0; j < linesInSegments[i].size(); j++){
+				tmpLines.push_back(linesInSegments[i][j]);
+			}
+			stitchedLines.push_back(tmpLines);
         } else {
             // need to add or subtract from x or y depending on the turn
             // direction given in the previous mapsegment.
@@ -446,6 +452,7 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
 					xDir=1;
 					yDir=0;
 				}
+				rotation+=90;
 			}
 			else if(mapSegments[i].turnDirection == mapSegments[i-1].RIGHT_TURN){
 				if(1==xDir && 0==yDir){
@@ -464,6 +471,7 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
 					xDir=1;
 					yDir=0;
 				}
+				rotation-=90;
 			}
 			else if(mapSegments[i].turnDirection == mapSegments[i-1].U_TURN){
 				if(xDir!=0){
@@ -472,8 +480,41 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
 				else if(yDir!=0){
 					yDir=-yDir;
 				}
+				rotation+=180;
+			}
+			if(rotation>=360){
+				rotation=rotation-360;
+			}
+			else if(rotation<=-360){
+				rotation=rotation+360;
 			}
 			
+			if(rotation==0){
+				std::vector<Line> tmpLines;
+				for(int j = 0; j < linesInSegments[i].size(); j++){
+					Line tmpLine = linesInSegments[i][j];
+					tmpLine.start.x = tmpLine.start.x + xStart;
+					tmpLine.start.y = tmpLine.start.y + yStart;
+					tmpLine.end.x = tmpLine.end.x + xStart;
+					tmpLine.end.y = tmpLine.end.y + yStart;
+					tmpLines.push_back(tmpLine);
+				}
+				stitchedLines.push_back(tmpLines);
+			}
+			else{
+				std::vector<Line> tmpLines;
+				for(int j = 0; j < linesInSegments[i].size(); j++){
+					Line tmpLine = linesInSegments[i][j];
+					tmpLine = rotateLine(tmpLine,rotation);
+					tmpLine.start.x = tmpLine.start.x + xStart;
+					tmpLine.start.y = tmpLine.start.y + yStart;
+					tmpLine.end.x = tmpLine.end.x + xStart;
+					tmpLine.end.y = tmpLine.end.y + yStart;
+					tmpLines.push_back(tmpLine);
+				}
+				stitchedLines.push_back(tmpLines);
+			}
+			//Line rotLine = 
 			//Just add the difference and change the segmentEndPoint x and y
 			float newX = xDir * segmentEnd.odometry.distanceTotal;
 			float newY = yDir * segmentEnd.odometry.distanceTotal;
