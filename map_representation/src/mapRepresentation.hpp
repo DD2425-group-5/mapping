@@ -5,6 +5,8 @@
 #include <mapping_msgs/LineVector.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <occupancy_grid_utils/coordinate_conversions.h>
+#include <occupancy_grid_utils/ray_tracer.h>
+#include <occupancy_grid_utils/impl/ray_trace_iterator.h>
 
 struct MinMaxXY {
     MinMaxXY(float _minX, float _maxX, float _minY, float _maxY) : minX(_minX), maxX(_maxX), minY(_minY), maxY(_maxY){}
@@ -23,6 +25,7 @@ private:
     
     void runNode();
     void lineCallback(const mapping_msgs::LineVector& msg);
+    void projectLineOntoGrid(mapping_msgs::Line msg);
 
     std::pair<float, float> findLineBoundSize(mapping_msgs::LineVector lines);
     MinMaxXY lineMinMax(mapping_msgs::Line l);
