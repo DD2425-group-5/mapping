@@ -15,6 +15,12 @@
   <run_depend>roscpp</run_depend>
   <build_depend>nav_msgs</build_depend>
   <run_depend>nav_msgs</run_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <run_depend>geometry_msgs</run_depend>
+  <build_depend>mapping_msgs</build_depend>
+  <run_depend>mapping_msgs</run_depend>
+  <build_depend>rosutil</build_depend>
+  <run_depend>rosutil</run_depend>
 
 
   <export>
