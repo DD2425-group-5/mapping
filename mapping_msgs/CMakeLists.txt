@@ -9,6 +9,7 @@ add_message_files(
   MapSegment.msg
   Line.msg
   LineVector.msg
+  SegmentLineVector.msg
 )
 
 generate_messages(

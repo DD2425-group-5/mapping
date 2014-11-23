@@ -1,8 +1,10 @@
 #include <ros/ros.h>
 #include <rosutil/rosutil.hpp>
 #include <utility>
+#include <cmath>
 #include <limits>
 #include <mapping_msgs/LineVector.h>
+#include <mapping_msgs/SegmentLineVector.h>
 #include <nav_msgs/OccupancyGrid.h>
 #include <geometry_msgs/Polygon.h>
 #include <occupancy_grid_utils/coordinate_conversions.h>
@@ -22,17 +24,24 @@ public:
 private:
     ros::Subscriber line_sub;
 
-    mapping_msgs::LineVector lines;
+    mapping_msgs::SegmentLineVector segLineVec;
     nav_msgs::OccupancyGrid grid;
+
+    bool receivedLines;
     
     void runNode();
-    void lineCallback(const mapping_msgs::LineVector& msg);
-    void projectLineOntoGrid(mapping_msgs::Line msg, signed char value);
+    void lineCallback(const mapping_msgs::SegmentLineVector& msg);
 
-    std::pair<float, float> findLineBoundSize(mapping_msgs::LineVector lines);
+    void populateGrid();
 
+
+
+    MinMaxXY findSegmentBounds(std::vector<mapping_msgs::LineVector> segmentLines);
+    MinMaxXY findSegmentBounds(mapping_msgs::LineVector segmentLine);
+    void setMinMaxFromStruct(MinMaxXY comp, float& minX, float& maxX, float& minY, float& maxY);
     void setCellsInBounds(geometry_msgs::Polygon bounds, signed char value);
-    geometry_msgs::Polygon boundsFromLines(mapping_msgs::Line l1, mapping_msgs::Line l2);
+    void setCellsOnLine(mapping_msgs::Line l, signed char value);
+    geometry_msgs::Polygon boundsToPolygon(MinMaxXY bounds);
     MinMaxXY lineMinMax(mapping_msgs::Line l);
 };
 
