@@ -1,5 +1,5 @@
 #include "mapRepresentation.hpp"
-#include <nav_msgs/OccupancyGrid.h>
+
 
 MapRepresentation::MapRepresentation(int argc, char *argv[]){
     ros::init(argc, argv, "map_representation");
@@ -15,6 +15,10 @@ void MapRepresentation::runNode(){
 }
 
 void MapRepresentation::lineCallback(const mapping_msgs::LineVector& msg){
+    
+}
+
+std::pair<float, float> findGridSize(mapping_msgs::LineVector lines) {
     
 }
 
