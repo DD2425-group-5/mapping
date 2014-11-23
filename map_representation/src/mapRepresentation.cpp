@@ -62,6 +62,26 @@ MinMaxXY MapRepresentation::lineMinMax(mapping_msgs::Line l){
 }
 
 
+
+void MapRepresentation::projectLineOntoGrid(mapping_msgs::Line lineToProject){
+    ocutil::RayTraceIterRange iterators = occupancy_grid_utils::rayTrace( grid.info,
+                                                                                    	lineToProject.start,
+                                                                                     	lineToProject.end,
+                                                                                        false,
+                                                                                        false                );
+                                       
+    ocutil::RayTraceIterator iterator= iterators.first;
+    ocutil::RayTraceIterator iteratorEnd= iterators.second;
+    
+    for(; !(iterator == iteratorEnd); iterator++ ){
+        
+        ocutil::index_t unfathomableIndex = occupancy_grid_utils::cellIndex	( grid.info,
+                                                                              *iterator  );
+        grid.data[unfathomableIndex] = 100;
+    }
+}
+
+
 int main(int argc, char *argv[])
 {
     MapRepresentation(argc, argv);
