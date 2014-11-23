@@ -47,6 +47,8 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
 }
 
 void SegmentStitching::runNode(){
+
+    std::vector<std::vector<Line> > segmentLines;
     // Go through all the segments, extract measurements, and convert these to lines.
     for (size_t segment = 0; segment < mapSegments.size(); segment++) {
         ROS_INFO("Processing segment %d of %d", (int)(segment + 1), (int)(mapSegments.size()));
@@ -58,10 +60,10 @@ void SegmentStitching::runNode(){
         // Extract the lines from this segment using ransac. This operation
         // destroys the measurement pointcloud
         std::vector<Line> lines = extractLinesFromMeasurements(measurements, ransacThreshold);
-
+        segmentLines.push_back(lines);
+        stitchSegmentLines(segmentLines);
         tmpPublish(measurements, lines);
     }
-
 }
 
 void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::vector<Line> lines){
@@ -373,9 +375,39 @@ Line SegmentStitching::rotateLine(Line lineToRotate, float angle){
  * rotating around the point that ends the previous segment should work?
  * Transform the point we are rotating around to the origin, rotate the points,
  * then translate back.
+ *
+ * Should return the lines for the segments rotated and translated to the
+ * correct position relative to the map.
  */
-void SegmentStitching::stitchSegmentLines(){
+std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector<std::vector<Line> > linesInSegments){
+    // Keep a list of the positions of the robot at the beginning and end of
+    // each segment, relative to the map, as opposed to each segment.
+    std::vector<pcl::PointXYZ> segmentPointChain;
+    segmentPointChain.push_back(pcl::PointXYZ(0,0,0)); // chain starts at the origin
+    std::vector<std::vector<Line> > stitchedLines;
     
+    for (size_t i = 0; i < linesInSegments.size(); i++) {
+        // End point of the segment is at the end of the list. Don't need to
+        // extract the first point because the values are all zero.
+        std::vector<mapping_msgs::SegmentPoint> segList = mapSegments[i].pointList;
+        mapping_msgs::SegmentPoint segmentEnd = segList[segList.size() - 1];
+        
+        // Extract the points from the segmentpoint. Start point for the segment
+        // should always be (0,0,0). The end point corresponds to the position
+        // of the robot at the end of the segment. We assume no motion in the x
+        // direction.
+        pcl::PointXYZ segmentStartPoint(0, 0, 0);
+        pcl::PointXYZ segmentEndPoint(0, segmentEnd.odometry.distanceTotal, 0);
+
+        if (i == 0) {
+            // for the first segment, there is no need to modify the end point
+            segmentPointChain.push_back(segmentEndPoint);
+        } else {
+            // need to add or subtract from x or y depending on the turn
+            // direction given in the previous mapsegment.
+            
+        }
+    }
 }
 
 /**

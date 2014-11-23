@@ -89,7 +89,7 @@ private:
                                
     
     Line rotateLine(Line lineToRotate, float angle);
-    void stitchSegmentLines();
+    void stitchSegmentLines(std::vector<std::vector<Line> > linesInSegments);
     void createOccupancyGrid();
     void populateSensorPositions(ros::NodeHandle handle);
     void tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::vector<Line> lines);
