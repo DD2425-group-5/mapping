@@ -17,11 +17,6 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
     segcloud_pub = handle.advertise<pcl::PointCloud<pcl::PointXYZ> >("/segment_stitching/segcloud", 1);
     linemarker_pub = handle.advertise<visualization_msgs::Marker>("/segment_stitching/linemarkers", 1);
 
-    std::string lineTopic;
-    ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/stitched_line_topic",
-                      lineTopic);
-    stitched_pub = handle.advertise<mapping_msgs::LineVector>(lineTopic, 1);
-
     // Initialise the locations of the IR sensors relative to the centre of the robot.
     populateSensorPositions(handle);
 
@@ -112,18 +107,6 @@ void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::v
         ros::spinOnce();
         loop.sleep();
     }
-}
-
-void SegmentStitching::publishFinalLines(std::vector<std::vector<Line> > lines){
-    mapping_msgs::LineVector lv;
-    
-    for (size_t i = 0; i < lines.size(); i++) {
-        for (size_t j = 0; j < lines[i].size(); j++){
-            mapping_msgs::Line l = lines[i][j];
-            l.id = i; // id corresponds to the segment the line came from
-        }
-    }
-    stitched_pub.publish(lv);
 }
 
 /**
@@ -357,7 +340,7 @@ Line SegmentStitching::extractLineFromMeasurements(pcl::PointCloud<pcl::PointXYZ
 
 /* rotate a single Line line*/
 Line SegmentStitching::rotateLine(Line lineToRotate, float angle){
-    //float angleInRadians = (M_PI*angle)/180.0;
+    float angleInRadians = (M_PI*angle)/180.0;
     
     
     //create empty cloud
@@ -403,6 +386,13 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
     segmentPointChain.push_back(pcl::PointXYZ(0,0,0)); // chain starts at the origin
     std::vector<std::vector<Line> > stitchedLines;
     
+	float xStart=0;	// start x position of line
+	float yStart=0;	// start y poistion of line
+	int xDir=1;		// direction x
+	int yDir=0;		// direction y
+	/*float xEnd=0;
+	float yEnd=0;*/
+	
     for (size_t i = 0; i < linesInSegments.size(); i++) {
         // End point of the segment is at the end of the list. Don't need to
         // extract the first point because the values are all zero.
@@ -413,7 +403,7 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
         // should always be (0,0,0). The end point corresponds to the position
         // of the robot at the end of the segment. We assume no motion in the x
         // direction.
-        pcl::PointXYZ segmentStartPoint(0, 0, 0);
+        pcl::PointXYZ segmentStartPoint(xStart, yStart, 0);
         pcl::PointXYZ segmentEndPoint(0, segmentEnd.odometry.distanceTotal, 0);
 
         if (i == 0) {
@@ -422,12 +412,74 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
         } else {
             // need to add or subtract from x or y depending on the turn
             // direction given in the previous mapsegment.
-            
+            if(mapSegments[i].turnDirection == mapSegments[i-1].LEFT_TURN){
+				if(1==xDir && 0==yDir){
+					xDir=0;
+					yDir=1;
+				}
+				else if(0==xDir && 1==yDir){
+					xDir=-1;
+					yDir=0;
+				}
+				else if(-1==xDir && 0==yDir){
+					xDir=0;
+					yDir=-1;
+				}
+				else{
+					xDir=1;
+					yDir=0;
+				}
+			}
+			else if(mapSegments[i].turnDirection == mapSegments[i-1].RIGHT_TURN){
+				if(1==xDir && 0==yDir){
+					xDir=0;
+					yDir=-1;
+				}
+				else if(0==xDir && -1==yDir){
+					xDir=-1;
+					yDir=0;
+				}
+				else if(-1==xDir && 0==yDir){
+					xDir=0;
+					yDir=1;
+				}
+				else{
+					xDir=1;
+					yDir=0;
+				}
+			}
+			else if(mapSegments[i].turnDirection == mapSegments[i-1].U_TURN){
+				if(xDir!=0){
+					xDir=-xDir;
+				}
+				else if(yDir!=0){
+					yDir=-yDir;
+				}
+			}
+			
+			//Just add the difference and change the segmentEndPoint x and y
+			float newX = xDir * segmentEnd.odometry.distanceTotal;
+			float newY = yDir * segmentEnd.odometry.distanceTotal;
+			newX = newX + xStart;
+			newY = newY + yStart;
+			segmentEndPoint.x = newX;
+			segmentEndPoint.y = newY;
+			
+			segmentPointChain.push_back(segmentEndPoint);
         }
+		xStart=segmentEndPoint.x;
+		yStart=segmentEndPoint.y;
     }
-
-    return stitchedLines;
 }
+
+/**
+ * Create an occupancy grid from the stitched lines. Once these are extracted it
+ * should be possible to simply travel along the line with a small step, and
+ * populate all the points in the occupancy grid that the line passes through.
+ */
+void SegmentStitching::createOccupancyGrid(){
+}
+
 
 int main(int argc, char *argv[])
 {
