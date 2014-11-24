@@ -158,6 +158,8 @@ void SegmentStitching::publishFinalLines(std::vector<std::vector<Line> > lines){
         for (size_t j = 0; j < lines[i].size(); j++){
             mapping_msgs::Line l = lines[i][j];
             l.id = i; // id corresponds to the segment the line came from
+            // compute the line equation as well
+            MathUtil::lineEquation(l.start.x, l.start.y, l.end.x, l.end.y, l.a, l.b, l.c);
             sl.lines.push_back(l);
         }
         slv.segments.push_back(sl);

@@ -1,17 +1,17 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(map_representation)
 
-find_package(catkin REQUIRED COMPONENTS roscpp nav_msgs rosutil mapping_msgs occupancy_grid_utils)
+find_package(catkin REQUIRED COMPONENTS roscpp nav_msgs rosutil mapping_msgs occupancy_grid_utils maputil)
 
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES blobdetection 
-  CATKIN_DEPENDS roscpp nav_msgs rosutil mapping_msgs occupancy_grid_utils tf
+  CATKIN_DEPENDS roscpp nav_msgs rosutil mapping_msgs occupancy_grid_utils maputil
 #  DEPENDS visionutil
 )
 
 include_directories(include ${catkin_INCLUDE_DIRS})
 
 add_executable(map_representation src/mapRepresentation.cpp)
-target_link_libraries(map_representation ${catkin_LIBRARIES} rosutil grid_utils)
+target_link_libraries(map_representation ${catkin_LIBRARIES} rosutil grid_utils maputil)
 add_dependencies(map_representation ${catkin_EXPORTED_TARGETS})

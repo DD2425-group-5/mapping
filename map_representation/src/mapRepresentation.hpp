@@ -8,6 +8,7 @@
 #include <limits>
 #include <mapping_msgs/LineVector.h>
 #include <mapping_msgs/SegmentLineVector.h>
+#include "maputil/maputil.hpp"
 #include <nav_msgs/OccupancyGrid.h>
 #include <geometry_msgs/Polygon.h>
 #include <occupancy_grid_utils/coordinate_conversions.h>

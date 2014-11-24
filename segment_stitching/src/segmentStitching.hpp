@@ -15,6 +15,7 @@
 #include "rosutil/rosutil.hpp"
 #include "sysutil/sysutil.hpp"
 #include "pclutil/pclutil.hpp"
+#include "mathutil/mathutil.hpp"
 #include "mapping_msgs/MapSegment.h"
 #include "mapping_msgs/SegmentPoint.h"
 #include "mapping_msgs/Line.h"

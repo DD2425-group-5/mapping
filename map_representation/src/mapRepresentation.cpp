@@ -63,7 +63,7 @@ void MapRepresentation::populateGrid(){
     grid.info.width = (int)(std::ceil(widthMetres/grid.info.resolution));
     grid.info.height = (int)(std::ceil(heightMetres/grid.info.resolution));
     // initialise the grid data, with each cell undefined.
-    grid.data = std::vector<signed char>(grid.info.width * grid.info.height, -1);
+    grid.data = std::vector<signed char>(grid.info.width * grid.info.height, MapUtil::UNKNOWN);
     ROS_INFO("Number of cells in grid: %d", (int)grid.data.size());
 
     ROS_INFO_STREAM("Grid info:" << grid.info);
@@ -79,12 +79,12 @@ void MapRepresentation::populateGrid(){
         geometry_msgs::Polygon bound = boundsToPolygon(segmentBounds);
         ROS_INFO_STREAM("Polygon created from bounds: " << bound);
         // set the value of all cells in the polygon to empty
-        setCellsInBounds(bound, 0);
+        setCellsInBounds(bound, MapUtil::UNOCCUPIED);
         // for each individual line (wall) in the segment, set cells which fall under
         // the line to occupied.
         std::vector<mapping_msgs::Line> linesInSegment = segment.lines;
         for (size_t i = 0; i < linesInSegment.size(); i++){
-            setCellsOnLine(linesInSegment[i], 100);
+            setCellsOnLine(linesInSegment[i], MapUtil::OCCUPIED);
         }
     }
 }
