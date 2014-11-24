@@ -7,6 +7,7 @@
 #include <rosbag/view.h>
 #include <geometry_msgs/Point.h>
 #include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 #include <pcl/point_types.h>
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model_line.h>
@@ -86,6 +87,7 @@ private:
     pcl::PointXYZ rotatedEndPoint;
     ros::Publisher segcloud_pub;
     ros::Publisher linemarker_pub;
+    ros::Publisher markerArray_pub;
     ros::Publisher stitched_pub;
 
     void runNode();
@@ -104,8 +106,9 @@ private:
     void populateSensorPositions(ros::NodeHandle handle);
     void publishFinalLines(std::vector<std::vector<Line> > lines);
     void tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::vector<Line> lines);
-    void publishLineMarkers(std::vector<Line> lines, std::string markerRef);
+    visualization_msgs::Marker makeLineMarkers(std::vector<Line> lines, std::string markerRef);
     void publishCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cl);
+    void publishSegmentLines(std::vector<std::vector<Line> > lines);
 };
 
     

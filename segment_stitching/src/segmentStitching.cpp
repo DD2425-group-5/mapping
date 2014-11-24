@@ -16,6 +16,7 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
 
     segcloud_pub = handle.advertise<pcl::PointCloud<pcl::PointXYZ> >("/segment_stitching/segcloud", 1);
     linemarker_pub = handle.advertise<visualization_msgs::Marker>("/segment_stitching/linemarkers", 1);
+    markerArray_pub = handle.advertise<visualization_msgs::MarkerArray>("/segment_stitching/markerarray", 1);
 	
     std::string lineTopic;
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/stitched_line_topic",
@@ -66,17 +67,38 @@ void SegmentStitching::runNode(){
         // destroys the measurement pointcloud
         std::vector<Line> lines = extractLinesFromMeasurements(measurements, ransacThreshold);
         segmentLines.push_back(lines);
-        stitchSegmentLines(segmentLines);
-        tmpPublish(measurements, lines);
+//        tmpPublish(measurements, lines);
     }
+    std::vector<std::vector<Line> > stitchedLines = stitchSegmentLines(segmentLines);
+    publishSegmentLines(stitchedLines);
 }
 
 void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::vector<Line> lines){
+    ros::Rate loopRate(10);
     while (ros::ok()){
         publishCloud(cl);
-        publishLineMarkers(lines, "unspecifiedMarker");
+        visualization_msgs::Marker m = makeLineMarkers(lines, "unspecifiedMarker");
+        linemarker_pub.publish(m);
+        loopRate.sleep();
+        
     }
 
+}
+
+void SegmentStitching::publishSegmentLines(std::vector<std::vector<Line> > lines){
+    visualization_msgs::MarkerArray ar;
+    for (size_t i = 0; i < lines.size(); i++) {
+        visualization_msgs::Marker m;
+        char buff[25];
+        sprintf(buff, "segment %d lines", (int)i);
+        m = makeLineMarkers(lines[i], std::string(buff));
+        ar.markers.push_back(m);
+    }
+    ros::Rate loopRate(10);
+    while (ros::ok()){
+        markerArray_pub.publish(ar);
+        loopRate.sleep();
+    }
 }
 
 void SegmentStitching::publishCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cl){
@@ -86,7 +108,7 @@ void SegmentStitching::publishCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cl){
     segcloud_pub.publish(cl);
 }
 
-void SegmentStitching::publishLineMarkers(std::vector<Line> lines, std::string markerRef){
+visualization_msgs::Marker SegmentStitching::makeLineMarkers(std::vector<Line> lines, std::string markerRef){
     visualization_msgs::Marker marker;
     marker.header.frame_id = "camera_link";
     marker.header.stamp = ros::Time();
@@ -117,7 +139,7 @@ void SegmentStitching::publishLineMarkers(std::vector<Line> lines, std::string m
         ROS_INFO_STREAM("Line start: " << start << ", line end: " << end);
     }
 
-    linemarker_pub.publish(marker);
+    return marker;
 }
 
 /**
@@ -366,33 +388,21 @@ Line SegmentStitching::extractLineFromMeasurements(pcl::PointCloud<pcl::PointXYZ
 }
 
 
-/* rotate a single Line line*/
-Line SegmentStitching::rotateLine(Line lineToRotate, float angle){
-    //float angleInRadians = (M_PI*angle)/180.0;
+/**
+ * Rotate a line, expects angle in degrees.
+ */
+Line SegmentStitching::rotateLine(Line l, float angle){
+    std::cout << "Rotating " << angle << " degrees." << std::endl;
+    std::cout << "Original line: " << l << std::endl;
+
+
+    pcl::PointXYZ newStart = PCLUtil::rotatePointAroundOriginXY(l.start, angle);
+    pcl::PointXYZ newEnd = PCLUtil::rotatePointAroundOriginXY(l.end, angle);
+
+    Line newLine = Line(newStart, newEnd);
+    std::cout << "Rotated line: " << newLine << std::endl;
     
-    
-    //create empty cloud
-    pcl::PointCloud<pcl::PointXYZ>::Ptr lineToRotateAsCloud(new pcl::PointCloud<pcl::PointXYZ> ());
-    pcl::PointCloud<pcl::PointXYZ>::Ptr lineRotatedAsCloud(new pcl::PointCloud<pcl::PointXYZ> ());
-    
-    //push line into the cloud
-    lineToRotateAsCloud->push_back(lineToRotate.start);
-    lineToRotateAsCloud->push_back(lineToRotate.end);
-        
-    //call rotateCloud
-    lineRotatedAsCloud = PCLUtil::rotateCloud(lineToRotateAsCloud, angle);
-    
-    //extract rotated line from rotated cloud
-    pcl::PointCloud<pcl::PointXYZ>::iterator startElement = lineRotatedAsCloud->begin();
-    pcl::PointCloud<pcl::PointXYZ>::iterator endElement = lineRotatedAsCloud->end();
-    Line rotatedLine(*startElement, *endElement);
-    ROS_INFO_STREAM("Extracted rotated point "
-                    << (int)(startElement - lineRotatedAsCloud->begin())
-                    << ": " << *startElement);
-    ROS_INFO_STREAM("Extracted rotated point "
-                    << (int)(endElement - lineRotatedAsCloud->begin())
-                    << ": " << *endElement);
-    return rotatedLine;
+    return newLine;
 }
 
 
@@ -438,7 +448,8 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
         pcl::PointXYZ segmentEndPoint(0, segmentEnd.odometry.distanceTotal, 0);
 
         if (i == 0) {
-            // for the first segment, there is no need to modify the end point
+            // for the first segment, there is no need to modify the start and
+            // end points of the segment
             segmentPointChain.push_back(segmentEndPoint);
             std::vector<Line> tmpLines;
             for(size_t j = 0; j < linesInSegments[i].size(); j++){
@@ -449,6 +460,7 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
             // need to add or subtract from x or y depending on the turn
             // direction given in the previous mapsegment.
             if (mapSegments[i].turnDirection == mapSegments[i-1].LEFT_TURN){
+                ROS_INFO("Segment %d is a left turn (rotated 90)", (int)i);
                 if (1==xDir && 0==yDir){
                     xDir=0;
                     yDir=1;
@@ -464,6 +476,7 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
                 }
                 rotation+=90;
             } else if (mapSegments[i].turnDirection == mapSegments[i-1].RIGHT_TURN){
+                ROS_INFO("Segment %d is a right turn (rotated -90)", (int)i);
                 if(1==xDir && 0==yDir){
                     xDir=0;
                     yDir=-1;
@@ -479,6 +492,7 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
                 }
                 rotation-=90;
             } else if (mapSegments[i].turnDirection == mapSegments[i-1].U_TURN){
+                ROS_INFO("Segment %d is a u turn (rotated 90)", (int)i);
                 if (xDir!=0){
                     xDir=-xDir;
                 } else if (yDir!=0){
