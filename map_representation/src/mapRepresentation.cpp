@@ -11,33 +11,38 @@ MapRepresentation::MapRepresentation(int argc, char *argv[]){
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/stitched_line_topic",
                       lineTopic);
     line_sub = handle.subscribe(lineTopic, 1, &MapRepresentation::lineCallback, this);
+
+    std::string mapTopic;
+    ROSUtil::getParam(handle, "/topic_list/mapping_topics/map_representation/published/map_topic",
+                      mapTopic);
+    map_pub = handle.advertise<nav_msgs::OccupancyGrid>(mapTopic, 1);
     
     ROSUtil::getParam(handle, "/map_representation/grid_resolution", grid.info.resolution);
-
-    /*tf::Transform transform;
-    tf::StampedTransform stampedtransform;
-    transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
-    //stampedtransform.something = transform;
-    stampedtransform.stamp_ = ros::Time::now();
-    stampedtransform.frame_id_ = "map_frame";
-    br.sendTransform(stampedtransform);*/
     
     runNode();
 }
 
 void MapRepresentation::runNode(){
-    ros::Rate loopRate(10);
+    ros::Rate checkRate(10);
     // wait to receive lines from the topic
     while (!receivedLines && ros::ok()){
-        loopRate.sleep();
+        checkRate.sleep();
         ros::spinOnce();
     }
 
     // received lines, so process them and populate the occupancy grid
     populateGrid();
+
+    // publish the map at 1hz
+    ros::Rate mapPubRate(1);
+    while (ros::ok()){
+        mapPubRate.sleep();
+        map_pub.publish(grid);
+    }
 }
 
 void MapRepresentation::lineCallback(const mapping_msgs::SegmentLineVector& msg){
+    ROS_INFO("Received segment line vector representing map");
     segLineVec = msg;
     receivedLines = true; // start processing the lines to create the map
 }
@@ -45,24 +50,34 @@ void MapRepresentation::lineCallback(const mapping_msgs::SegmentLineVector& msg)
 void MapRepresentation::populateGrid(){
     std::vector<mapping_msgs::LineVector> segmentLines = segLineVec.segments;
     MinMaxXY gridBounds = findSegmentBounds(segmentLines);
-    
+
+    translateToOrigin(segmentLines, gridBounds);
+
+    ROS_INFO_STREAM("Grid bounds: " << gridBounds);
+
     // Set the width and height of the grid in cells based on the bounds of the
     // lines provided, and the resolution of the grid.
     float widthMetres = gridBounds.maxX - gridBounds.minX;
     float heightMetres = gridBounds.maxY - gridBounds.minY;
+    ROS_INFO("Grid height: %fm, width: %fm", widthMetres, heightMetres);
     grid.info.width = (int)(std::ceil(widthMetres/grid.info.resolution));
     grid.info.height = (int)(std::ceil(heightMetres/grid.info.resolution));
     // initialise the grid data, with each cell undefined.
     grid.data = std::vector<signed char>(grid.info.width * grid.info.height, -1);
-    
+    ROS_INFO("Number of cells in grid: %d", (int)grid.data.size());
+
+    ROS_INFO_STREAM("Grid info:" << grid.info);
     // iterate over all the lines received 
     std::vector<mapping_msgs::LineVector>::iterator it = segmentLines.begin();
     for (; it != segmentLines.end(); it++) {
         mapping_msgs::LineVector segment = *it;
         // Find the bounds of a single segment
+
         MinMaxXY segmentBounds = findSegmentBounds(segment);
         // get the polygon representing the bound, will be a rectangle
+        ROS_INFO_STREAM("Bounds of segment " << it - segmentLines.begin() << ": " << segmentBounds);
         geometry_msgs::Polygon bound = boundsToPolygon(segmentBounds);
+        ROS_INFO_STREAM("Polygon created from bounds: " << bound);
         // set the value of all cells in the polygon to empty
         setCellsInBounds(bound, 0);
         // for each individual line (wall) in the segment, set cells which fall under
@@ -72,6 +87,13 @@ void MapRepresentation::populateGrid(){
             setCellsOnLine(linesInSegment[i], 100);
         }
     }
+}
+
+/**
+ * Translate the lines in segmentLines to the origin. Modifies the segmentLines in place.
+ */
+void MapRepresentation::translateToOrigin(std::vector<mapping_msgs::LineVector>& segmentLines, MinMaxXY gridBounds){
+    
 }
 
 /**
@@ -154,22 +176,30 @@ MinMaxXY MapRepresentation::lineMinMax(mapping_msgs::Line l){
 geometry_msgs::Polygon MapRepresentation::boundsToPolygon(MinMaxXY bounds){
     geometry_msgs::Polygon poly;
     
+    ROS_INFO_STREAM("boundsToPolygon received bounds: " << bounds);
     geometry_msgs::Point32 botLeft;
     botLeft.x = bounds.minX;
     botLeft.y = bounds.minY;
     botLeft.z = 0;
+    ROS_INFO_STREAM("Bottom left point: " << botLeft);
+
     geometry_msgs::Point32 topLeft;
-    botLeft.x = bounds.minX;
-    botLeft.y = bounds.maxY;
-    botLeft.z = 0;
+    topLeft.x = bounds.minX;
+    topLeft.y = bounds.maxY;
+    topLeft.z = 0;
+    ROS_INFO_STREAM("Top left point: " << topLeft);
+
     geometry_msgs::Point32 topRight;
-    botLeft.x = bounds.maxX;
-    botLeft.y = bounds.maxY;
-    botLeft.z = 0;
+    topRight.x = bounds.maxX;
+    topRight.y = bounds.maxY;
+    topRight.z = 0;
+    ROS_INFO_STREAM("Top right point: " << topRight);
+
     geometry_msgs::Point32 botRight;
-    botLeft.x = bounds.maxX;
-    botLeft.y = bounds.minY;
-    botLeft.z = 0;
+    botRight.x = bounds.maxX;
+    botRight.y = bounds.minY;
+    botRight.z = 0;
+    ROS_INFO_STREAM("Bottom right point: " << botRight);
     
     // push points onto the polygon in an order where they make a rectangle.
     poly.points.push_back(botLeft);
@@ -187,12 +217,16 @@ geometry_msgs::Polygon MapRepresentation::boundsToPolygon(MinMaxXY bounds){
 void MapRepresentation::setCellsInBounds(geometry_msgs::Polygon bounds, signed char value){
     // get cells within the polygon
     std::set<ocutil::Cell> cells = occupancy_grid_utils::cellsInConvexPolygon(grid.info, bounds);
+    int count = 0;
     for (std::set<ocutil::Cell>::iterator cell = cells.begin(); cell != cells.end(); cell++) {
         // Get the index corresponding to the cell
         ocutil::index_t ind = ocutil::cellIndex(grid.info, *cell);
         // set the cell to the specified value in the data array
         grid.data[ind] = value;
+        count++;
     }
+
+    ROS_INFO("Cells in polygon: %d", count);
 }
 
 /**
@@ -200,14 +234,16 @@ void MapRepresentation::setCellsInBounds(geometry_msgs::Polygon bounds, signed c
  * specified value.
  */
 void MapRepresentation::setCellsOnLine(mapping_msgs::Line lineToProject, signed char value){
+    ROS_INFO_STREAM("Line to project: " << lineToProject);
     ocutil::RayTraceIterRange iterators = ocutil::rayTrace(grid.info,
                                                            lineToProject.start,
                                                            lineToProject.end,
-                                                           false,
-                                                           false);
+                                                           true,
+                                                           true);
     ocutil::RayTraceIterator iterator = iterators.first;
     ocutil::RayTraceIterator iteratorEnd = iterators.second;
     
+    int count = 0;
     // Run the first iterator until it hits the position of the second iterator.
     for(; !(iterator == iteratorEnd); iterator++ ){
         // get the index corresponding to the cell pointed to by the iterator
@@ -215,6 +251,8 @@ void MapRepresentation::setCellsOnLine(mapping_msgs::Line lineToProject, signed 
         // set the index to the specified value
         grid.data[ind] = value;
     }
+
+    ROS_INFO("Cells on line: %d", count);
 }
 
 int main(int argc, char *argv[])
