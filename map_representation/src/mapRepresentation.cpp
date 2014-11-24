@@ -93,7 +93,16 @@ void MapRepresentation::populateGrid(){
  * Translate the lines in segmentLines to the origin. Modifies the segmentLines in place.
  */
 void MapRepresentation::translateToOrigin(std::vector<mapping_msgs::LineVector>& segmentLines, MinMaxXY gridBounds){
-    
+    for (size_t segmentIterator = 0; segmentIterator < segmentLines.size(); segmentIterator++){
+        mapping_msgs::LineVector currentSegment = segmentLines[segmentIterator];
+        for (size_t lineIterator = 0; lineIterator < currentSegment.lines.size(); lineIterator++){ 
+            mapping_msgs::Line currentLine = currentSegment.lines[lineIterator];
+            currentLine.start.x -= gridBounds.minX;
+            currentLine.start.y -= gridBounds.minY;
+            currentLine.end.x   -= gridBounds.minX;
+            currentLine.end.y   -= gridBounds.minY;
+        }
+     }
 }
 
 /**
