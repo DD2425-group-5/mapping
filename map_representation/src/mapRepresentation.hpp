@@ -1,5 +1,7 @@
 #include <ros/ros.h>
 #include <rosutil/rosutil.hpp>
+#include <tf/transform_broadcaster.h>
+#include <tf/transform_datatypes.h>
 #include <utility>
 #include <cmath>
 #include <limits>
@@ -23,6 +25,8 @@ public:
     MapRepresentation(int argc, char *argv[]);
 private:
     ros::Subscriber line_sub;
+    //tf::TransformBroadcaster br;
+
 
     mapping_msgs::SegmentLineVector segLineVec;
     nav_msgs::OccupancyGrid grid;

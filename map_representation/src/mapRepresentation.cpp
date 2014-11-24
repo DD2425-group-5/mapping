@@ -13,6 +13,14 @@ MapRepresentation::MapRepresentation(int argc, char *argv[]){
     line_sub = handle.subscribe(lineTopic, 1, &MapRepresentation::lineCallback, this);
     
     ROSUtil::getParam(handle, "/map_representation/grid_resolution", grid.info.resolution);
+
+    /*tf::Transform transform;
+    tf::StampedTransform stampedtransform;
+    transform.setOrigin(tf::Vector3(0.0, 0.0, 0.0));
+    //stampedtransform.something = transform;
+    stampedtransform.stamp_ = ros::Time::now();
+    stampedtransform.frame_id_ = "map_frame";
+    br.sendTransform(stampedtransform);*/
     
     runNode();
 }

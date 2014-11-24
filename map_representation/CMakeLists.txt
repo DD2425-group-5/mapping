@@ -6,7 +6,7 @@ find_package(catkin REQUIRED COMPONENTS roscpp nav_msgs rosutil mapping_msgs occ
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES blobdetection 
-  CATKIN_DEPENDS roscpp nav_msgs rosutil mapping_msgs occupancy_grid_utils
+  CATKIN_DEPENDS roscpp nav_msgs rosutil mapping_msgs occupancy_grid_utils tf
 #  DEPENDS visionutil
 )
 
