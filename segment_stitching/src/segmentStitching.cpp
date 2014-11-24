@@ -395,7 +395,6 @@ Line SegmentStitching::rotateLine(Line l, float angle){
     std::cout << "Rotating " << angle << " degrees." << std::endl;
     std::cout << "Original line: " << l << std::endl;
 
-
     pcl::PointXYZ newStart = PCLUtil::rotatePointAroundOriginXY(l.start, angle);
     pcl::PointXYZ newEnd = PCLUtil::rotatePointAroundOriginXY(l.end, angle);
 
@@ -404,7 +403,6 @@ Line SegmentStitching::rotateLine(Line l, float angle){
     
     return newLine;
 }
-
 
 /**
  * Combine the lines extracted from segments into a single set of lines which
@@ -424,19 +422,20 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
     // Keep a list of the positions of the robot at the beginning and end of
     // each segment, relative to the map, as opposed to each segment.
     std::vector<pcl::PointXYZ> segmentPointChain;
-    segmentPointChain.push_back(pcl::PointXYZ(0,0,0)); // chain starts at the origin
+    //segmentPointChain.push_back(pcl::PointXYZ(0,0,0)); // chain starts at the origin
     std::vector<std::vector<Line> > stitchedLines;
     
     // update this point every loop to make it correspond to the start point of
     // the segment in the global frame
     pcl::PointXYZ segmentGlobalStart(0,0,0);
-    int xDir=1;		// direction x
-    int yDir=0;		// direction y
+    int xDir=0;		// direction x
+    int yDir=1;		// direction y
     int rotation=0; // assume integer rotations to avoid float errors
     /*float xEnd=0;
       float yEnd=0;*/
 	
     for (size_t i = 0; i < linesInSegments.size(); i++) {
+        ROS_INFO("---------- Processing segment %d ----------", (int)i);
         ROS_INFO_STREAM("Segment start point: " << segmentGlobalStart);
         // End point of the segment is at the end of the list. Don't need to
         // extract the first point because the values are all zero.
@@ -447,33 +446,26 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
         // should always be (0,0,0). The end point corresponds to the position
         // of the robot at the end of the segment. We assume no motion in the x
         // direction.
-        pcl::PointXYZ segmentEndPoint(0, segmentEnd.odometry.distanceTotal, 0);
-        if (i == 0) {
-            // for the first segment, there is no need to modify the start and
-            // end points of the segment
-            segmentPointChain.push_back(segmentEndPoint);
-            std::vector<Line> tmpLines;
-            for(size_t j = 0; j < linesInSegments[i].size(); j++){
-                tmpLines.push_back(linesInSegments[i][j]);
-            }
-            stitchedLines.push_back(tmpLines);
-            ROS_INFO("First segment done");
-        } else {
-            // need to add or subtract from x or y depending on the turn
-            // direction given in the previous mapsegment.
+        float odomDist = segmentEnd.odometry.distanceTotal;
+        pcl::PointXYZ segmentEndPoint(xDir * odomDist, yDir * odomDist, 0);
+        ROS_INFO_STREAM("Initial segment endpoint: " << segmentEndPoint);
+        
+        // For segments after the first one, need to modify the xdir and ydir to
+        // correspond to the turn direction of the previous segment
+        if (i != 0){
             int turnDirection = mapSegments[i-1].turnDirection;
             if (turnDirection == mapping_msgs::MapSegment::LEFT_TURN){
                 ROS_INFO("Segment %d is a left turn from the previous segment (rotated 90)", (int)i);
-                if (1==xDir && 0==yDir){
+                if (1==xDir && 0==yDir){ // going along x axis -> switch to going along y
                     xDir=0;
                     yDir=1;
-                } else if (0==xDir && 1==yDir){
+                } else if (0==xDir && 1==yDir){ // going along y -> switch to going backwards on x
                     xDir=-1;
                     yDir=0;
-                } else if (-1==xDir && 0==yDir){
+                } else if (-1==xDir && 0==yDir){ // going backwards along x -> switch to going backwards on y
                     xDir=0;
                     yDir=-1;
-                } else {
+                } else { // going backwards along y -> switch to going along x
                     xDir=1;
                     yDir=0;
                 }
@@ -505,46 +497,59 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
             } else {
                 ROS_ERROR("Received map segment with invalid turn state.");
             }
-
-            // Reset rotation to be in bounds [180, -180]
-            if (rotation > 180){
-                rotation = rotation - 360;
-            } else if (rotation < -180){
-                rotation = rotation + 360;
-            }
-
-            ROS_INFO("Rotation is now %d", rotation);
-            
-            std::vector<Line> tmpLines;
-            // loop over lines in the segment
-            for(size_t j = 0; j < linesInSegments[i].size(); j++){
-                Line tmpLine = linesInSegments[i][j];
-                // if the segment is rotated in the global frame, rotate each
-                // line accordingly
-                if (rotation != 0){
-                    tmpLine = rotateLine(tmpLine,rotation);
-                }
-                // Translate both points on the line from their current position
-                // relative to the origin to the starting point of the line in
-                // the global frame.
-                tmpLine.start = tmpLine.start + segmentGlobalStart;
-                tmpLine.end = tmpLine.end + segmentGlobalStart;
-                tmpLines.push_back(tmpLine);
-            }
-            stitchedLines.push_back(tmpLines);
-            
-            //Just add the difference and change the segmentEndPoint x and y
-            float newX = xDir * segmentEnd.odometry.distanceTotal;
-            float newY = yDir * segmentEnd.odometry.distanceTotal;
-            newX = newX + segmentGlobalStart.x;
-            newY = newY + segmentGlobalStart.y;
-            segmentEndPoint = pcl::PointXYZ(newX, newY, 0);
-            segmentPointChain.push_back(segmentEndPoint);
         }
+
+        // Reset rotation to be in bounds [180, -180]
+        if (rotation > 180){
+            rotation = rotation - 360;
+        } else if (rotation < -180){
+            rotation = rotation + 360;
+        }
+
+        ROS_INFO("Rotation is now %d", rotation);
+            
+        std::vector<Line> tmpLines;
+        // loop over lines in the segment
+        for(size_t j = 0; j < linesInSegments[i].size(); j++){
+            ROS_INFO("Processing line %d", (int)j);
+            Line tmpLine = linesInSegments[i][j];
+            ROS_INFO_STREAM("" << tmpLine);
+            // if the segment is rotated in the global frame, rotate each
+            // line accordingly
+            if (rotation != 0){
+                tmpLine = rotateLine(tmpLine,rotation);
+            }
+            // Translate both points on the line from their current position
+            // relative to the origin to the starting point of the line in
+            // the global frame.
+            ROS_INFO_STREAM("Translating line according to " << segmentGlobalStart);
+            tmpLine.start = tmpLine.start + segmentGlobalStart;
+            tmpLine.end = tmpLine.end + segmentGlobalStart;
+
+            ROS_INFO_STREAM("Translated line: " << tmpLine);
+            tmpLines.push_back(tmpLine);
+            
+        }
+        stitchedLines.push_back(tmpLines);
+            
+        //Just add the difference and change the segmentEndPoint x and y
+        float newX = xDir * segmentEnd.odometry.distanceTotal;
+        float newY = yDir * segmentEnd.odometry.distanceTotal;
+        newX = newX + segmentGlobalStart.x;
+        newY = newY + segmentGlobalStart.y;
+        segmentEndPoint = pcl::PointXYZ(newX, newY, 0);
+        segmentPointChain.push_back(segmentEndPoint);
+
         ROS_INFO("X direction: %d, Y direction: %d", xDir, yDir);
         segmentGlobalStart = segmentEndPoint;
     }
+
+    for (size_t i = 0; i < segmentPointChain.size(); i++) {
+        ROS_INFO_STREAM("Segment point " << i << ": " << segmentPointChain[i]);
+    }
+
     return stitchedLines;
+
 }
 
 int main(int argc, char *argv[])
