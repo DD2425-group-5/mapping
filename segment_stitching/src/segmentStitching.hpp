@@ -19,6 +19,7 @@
 #include "mapping_msgs/SegmentPoint.h"
 #include "mapping_msgs/Line.h"
 #include "mapping_msgs/LineVector.h"
+#include "mapping_msgs/SegmentLineVector.h"
 
 class IRSensor {
 public:

@@ -21,7 +21,7 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
     std::string lineTopic;
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/stitched_line_topic",
                       lineTopic);
-    stitched_pub = handle.advertise<mapping_msgs::LineVector>(lineTopic, 1);
+    stitched_pub = handle.advertise<mapping_msgs::SegmentLineVector>(lineTopic, 1);
 	
     // Initialise the locations of the IR sensors relative to the centre of the robot.
     populateSensorPositions(handle);
@@ -70,7 +70,8 @@ void SegmentStitching::runNode(){
 //        tmpPublish(measurements, lines);
     }
     std::vector<std::vector<Line> > stitchedLines = stitchSegmentLines(segmentLines);
-    publishSegmentLines(stitchedLines);
+    publishFinalLines(stitchedLines);
+//    publishSegmentLines(stitchedLines);
 }
 
 void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::vector<Line> lines){
@@ -80,7 +81,6 @@ void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::v
         visualization_msgs::Marker m = makeLineMarkers(lines, "unspecifiedMarker");
         linemarker_pub.publish(m);
         loopRate.sleep();
-        
     }
 
 }
@@ -94,11 +94,12 @@ void SegmentStitching::publishSegmentLines(std::vector<std::vector<Line> > lines
         m = makeLineMarkers(lines[i], std::string(buff));
         ar.markers.push_back(m);
     }
-    ros::Rate loopRate(10);
-    while (ros::ok()){
-        markerArray_pub.publish(ar);
-        loopRate.sleep();
-    }
+
+    // ros::Rate loopRate(1);
+    // while (ros::ok()){
+    //     markerArray_pub.publish(ar);
+    //     loopRate.sleep();
+    // }
 }
 
 void SegmentStitching::publishCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cl){
@@ -114,9 +115,9 @@ visualization_msgs::Marker SegmentStitching::makeLineMarkers(std::vector<Line> l
     marker.header.stamp = ros::Time();
     marker.id = 0;
     marker.ns = markerRef;
-    marker.scale.x = 0.01;
-    marker.scale.y = 0.01;
-    marker.scale.z = 0.01;
+    marker.scale.x = 0.05;
+    marker.scale.y = 0.05;
+    marker.scale.z = 0.05;
     marker.color.a = 1.0;
     marker.color.r = 0.0;
     marker.color.g = 1.0;
@@ -144,18 +145,31 @@ visualization_msgs::Marker SegmentStitching::makeLineMarkers(std::vector<Line> l
 
 /**
  * Publish the set of lines which have been rotated according to the motion of
- * the robot.
+ * the robot. Each segment will have a corresponding LineVector, and the
+ * LineVector for each segment will be put in to the SegmentLineVector which is
+ * published in the end.
  */
 void SegmentStitching::publishFinalLines(std::vector<std::vector<Line> > lines){
-    mapping_msgs::LineVector lv;
-	
+    ROS_INFO("Publishing final stitched lines");
+    mapping_msgs::SegmentLineVector slv;
     for (size_t i = 0; i < lines.size(); i++) {
+        // lines for this segment
+        mapping_msgs::LineVector sl;
         for (size_t j = 0; j < lines[i].size(); j++){
             mapping_msgs::Line l = lines[i][j];
             l.id = i; // id corresponds to the segment the line came from
+            sl.lines.push_back(l);
         }
+        slv.segments.push_back(sl);
     }
-    stitched_pub.publish(lv);
+    ros::Rate loopRate(1);
+    while (ros::ok()){
+        loopRate.sleep();
+        stitched_pub.publish(slv);
+    }
+    
+    stitched_pub.publish(slv);
+    ROS_INFO("Publishing complete");
 }
 
 /**
@@ -528,15 +542,12 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector
 
             ROS_INFO_STREAM("Translated line: " << tmpLine);
             tmpLines.push_back(tmpLine);
-            
         }
         stitchedLines.push_back(tmpLines);
             
         //Just add the difference and change the segmentEndPoint x and y
-        float newX = xDir * segmentEnd.odometry.distanceTotal;
-        float newY = yDir * segmentEnd.odometry.distanceTotal;
-        newX = newX + segmentGlobalStart.x;
-        newY = newY + segmentGlobalStart.y;
+        float newX = xDir * segmentEnd.odometry.distanceTotal + segmentGlobalStart.x;
+        float newY = yDir * segmentEnd.odometry.distanceTotal + segmentGlobalStart.y;
         segmentEndPoint = pcl::PointXYZ(newX, newY, 0);
         segmentPointChain.push_back(segmentEndPoint);
 
