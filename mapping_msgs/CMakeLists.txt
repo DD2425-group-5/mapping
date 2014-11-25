@@ -10,6 +10,10 @@ add_message_files(
   Line.msg
   LineVector.msg
   SegmentLineVector.msg
+  Object.msg
+  ObjectVector.msg
+  SegmentObjectVector.msg
+  StitchingResults.msg
 )
 
 generate_messages(

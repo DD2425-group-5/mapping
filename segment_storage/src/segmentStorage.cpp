@@ -85,7 +85,7 @@ void SegmentStorage::runNode(){
                 currentSegment.pointList.push_back(generateSimulatedPoint());
             } else {
                 // first, add a point of the combined latest data received
-                addPoint(latestOdom, latestIRDist, latestObject);
+                addPoint(latestOdom, latestIRDist, latestObject, gotObject);
                 // then, clear all the data - in particular for latest object,
                 // this might not be updated in the next loop, and we do not
                 // want to keep it once it is added.
@@ -95,6 +95,7 @@ void SegmentStorage::runNode(){
                 latestOdom = clearOdom;
                 latestIRDist = clearIR;
                 latestObject = clearObject;
+                gotObject = false;
             }
         }
         loopRate.sleep();
@@ -103,11 +104,13 @@ void SegmentStorage::runNode(){
 
 void SegmentStorage::addPoint(hardware_msgs::Odometry odom,
                               hardware_msgs::IRDists ir,
-                              vision_master::object_found obj){
+                              vision_master::object_found obj,
+                              bool gotObject){
     mapping_msgs::SegmentPoint p;
     p.distances = ir;
     p.odometry = odom;
     p.object = obj;
+    p.gotObject = gotObject;
     
     currentSegment.pointList.push_back(p);
 }
@@ -165,6 +168,7 @@ void SegmentStorage::odomCallback(const hardware_msgs::Odometry::ConstPtr& msg){
 
 void SegmentStorage::detectCallback(const vision_master::object_found::ConstPtr& msg){
     latestObject = *msg;
+    gotObject = true;
 }
 
 /**

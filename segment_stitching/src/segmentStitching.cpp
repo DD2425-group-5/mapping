@@ -18,10 +18,10 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
     linemarker_pub = handle.advertise<visualization_msgs::Marker>("/segment_stitching/linemarkers", 1);
     markerArray_pub = handle.advertise<visualization_msgs::MarkerArray>("/segment_stitching/markerarray", 1);
 	
-    std::string lineTopic;
-    ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/stitched_line_topic",
-                      lineTopic);
-    stitched_pub = handle.advertise<mapping_msgs::SegmentLineVector>(lineTopic, 1);
+    std::string resultsTopic;
+    ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/results_topic",
+                      resultsTopic);
+    stitchedResults_pub = handle.advertise<mapping_msgs::StitchingResults>(resultsTopic, 1);
 	
     // Initialise the locations of the IR sensors relative to the centre of the robot.
     populateSensorPositions(handle);
@@ -55,26 +55,36 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
 void SegmentStitching::runNode(){
 
     std::vector<std::vector<Line> > segmentLines;
+    mapping_msgs::SegmentObjectVector allSegmentObjects;
     // Go through all the segments, extract measurements, and convert these to lines.
     for (size_t segment = 0; segment < mapSegments.size(); segment++) {
         ROS_INFO("Processing segment %d of %d", (int)(segment + 1), (int)(mapSegments.size()));
         // first, get the set of points which represent the measurements taken
         // in the segment. 
         pcl::PointCloud<pcl::PointXYZ>::Ptr measurements(new pcl::PointCloud<pcl::PointXYZ>);
-        segmentToMeasurements(mapSegments[segment], measurements);
+        // the objects vector contains the relative positions and strings
+        // corresponding to the objects which were detected in the segment. Only
+        // one message is received when the object is first detected -
+        // subsequent detections do not add more information, so there is no
+        // need to do clustering to find the object position, though this might
+        // increase the accuracy.
+        mapping_msgs::ObjectVector objects;
+        
+        segmentToMeasurements(mapSegments[segment], measurements, objects);
         
         // Extract the lines from this segment using ransac. This operation
         // destroys the measurement pointcloud
         std::vector<Line> lines = extractLinesFromMeasurements(measurements, ransacThreshold);
         segmentLines.push_back(lines);
+        allSegmentObjects.segmentObjects.push_back(objects);
 //        tmpPublish(measurements, lines);
     }
     std::vector<std::vector<Line> > stitchedLines = stitchSegmentLines(segmentLines);
-    publishFinalLines(stitchedLines);
+    publishFinalMessages(stitchedLines, allSegmentObjects);
 //    publishSegmentLines(stitchedLines);
 }
 
-void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::vector<Line> lines){
+void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, const std::vector<Line>& lines){
     ros::Rate loopRate(10);
     while (ros::ok()){
         publishCloud(cl);
@@ -85,7 +95,7 @@ void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::v
 
 }
 
-void SegmentStitching::publishSegmentLines(std::vector<std::vector<Line> > lines){
+void SegmentStitching::publishSegmentLines(const std::vector<std::vector<Line> >& lines){
     visualization_msgs::MarkerArray ar;
     for (size_t i = 0; i < lines.size(); i++) {
         visualization_msgs::Marker m;
@@ -109,7 +119,7 @@ void SegmentStitching::publishCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cl){
     segcloud_pub.publish(cl);
 }
 
-visualization_msgs::Marker SegmentStitching::makeLineMarkers(std::vector<Line> lines, std::string markerRef){
+visualization_msgs::Marker SegmentStitching::makeLineMarkers(const std::vector<Line>& lines, std::string markerRef){
     visualization_msgs::Marker marker;
     marker.header.frame_id = "camera_link";
     marker.header.stamp = ros::Time();
@@ -149,7 +159,9 @@ visualization_msgs::Marker SegmentStitching::makeLineMarkers(std::vector<Line> l
  * LineVector for each segment will be put in to the SegmentLineVector which is
  * published in the end.
  */
-void SegmentStitching::publishFinalLines(std::vector<std::vector<Line> > lines){
+void SegmentStitching::publishFinalMessages(const std::vector<std::vector<Line> >& lines,
+                                            const mapping_msgs::SegmentObjectVector& objects){
+    
     ROS_INFO("Publishing final stitched lines");
     mapping_msgs::SegmentLineVector slv;
     for (size_t i = 0; i < lines.size(); i++) {
@@ -164,13 +176,17 @@ void SegmentStitching::publishFinalLines(std::vector<std::vector<Line> > lines){
         }
         slv.segments.push_back(sl);
     }
+
+    mapping_msgs::StitchingResults results;
+    results.lines = slv;
+    results.objects = objects;
+    
     ros::Rate loopRate(1);
     while (ros::ok()){
         loopRate.sleep();
-        stitched_pub.publish(slv);
+        stitchedResults_pub.publish(results);
     }
     
-    stitched_pub.publish(slv);
     ROS_INFO("Publishing complete");
 }
 
@@ -214,16 +230,20 @@ void SegmentStitching::populateSensorPositions(ros::NodeHandle handle){
 /**
  * Convert a whole segment into a set of points corresponding to measurements
  * taken by IR sensors during the motion in the segment. The pointcloud passed
- * to this function will be populated with the points.
+ * to this function will be populated with the points. 
+ * objects will be put into the object vector given.
+ *
  */
-void SegmentStitching::segmentToMeasurements(mapping_msgs::MapSegment segment,
-                                             pcl::PointCloud<pcl::PointXYZ>::Ptr measurements){
+void SegmentStitching::segmentToMeasurements(const mapping_msgs::MapSegment& segment,
+                                             pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
+                                             mapping_msgs::ObjectVector& objects){
     ROS_INFO("Points in segment: %d", (int)segment.pointList.size());
     for (size_t point = 0; point < segment.pointList.size(); point++){
         // convert the IR distances at the point to a useful coordinate space
-        segmentPointToMeasurements(segment.pointList[point], measurements);
+        segmentPointToMeasurements(segment.pointList[point], measurements, objects);
     }
     ROS_INFO("Measurements in segment: %d", (int)measurements->size());
+    ROS_INFO("Objects in segment: %d", (int)objects.objects.size());
 }
 
 /**
@@ -235,9 +255,12 @@ void SegmentStitching::segmentToMeasurements(mapping_msgs::MapSegment segment,
  * positions and distances received. Only consider the side facing sensors.
  * The pointcloud passed to this function will be populated with the points.
  *
+ *
+ * Object detections will be added to the objects vector given.
  */
-void SegmentStitching::segmentPointToMeasurements(mapping_msgs::SegmentPoint pt,
-                                                  pcl::PointCloud<pcl::PointXYZ>::Ptr measurements){
+void SegmentStitching::segmentPointToMeasurements(const mapping_msgs::SegmentPoint& pt,
+                                                  pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
+                                                  mapping_msgs::ObjectVector& objects){
     hardware_msgs::IRDists dists = pt.distances;
     hardware_msgs::Odometry odom = pt.odometry;
     
@@ -257,6 +280,16 @@ void SegmentStitching::segmentPointToMeasurements(mapping_msgs::SegmentPoint pt,
         // std::cout << "adding " << s.asPCLPoint() << ", " << pcl::PointXYZ(distances[i], 0, 0) << std::endl;
         // std::cout << "result: " << p << std::endl;
         measurements->push_back(p);
+    }
+    
+    if (pt.gotObject){
+        mapping_msgs::Object p;
+        // the position of the object relative to the robot at the current point
+        // in the segment is the current odometry augmented by the object offset.
+        // assumes that camera is at (0,0,0) offset from the robot.
+        p.location = PCLUtil::pclToGeomPoint(odompt + pcl::PointXYZ(pt.object.offset_x, pt.object.offset_y, 0));
+        p.id = pt.object.id;
+        objects.objects.push_back(p);
     }
 }
 
@@ -403,11 +436,10 @@ Line SegmentStitching::extractLineFromMeasurements(pcl::PointCloud<pcl::PointXYZ
     ROS_ERROR("Reached end of extract line without getting anything!");
 }
 
-
 /**
  * Rotate a line, expects angle in degrees.
  */
-Line SegmentStitching::rotateLine(Line l, float angle){
+Line SegmentStitching::rotateLine(const Line& l, float angle){
     std::cout << "Rotating " << angle << " degrees." << std::endl;
     std::cout << "Original line: " << l << std::endl;
 
@@ -433,7 +465,7 @@ Line SegmentStitching::rotateLine(Line l, float angle){
  * Should return the lines for the segments rotated and translated to the
  * correct position relative to the map.
  */
-std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(std::vector<std::vector<Line> > linesInSegments){
+std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(const std::vector<std::vector<Line> >& linesInSegments){
     ROS_INFO("==================== Stitching segments ====================");
     // Keep a list of the positions of the robot at the beginning and end of
     // each segment, relative to the map, as opposed to each segment.

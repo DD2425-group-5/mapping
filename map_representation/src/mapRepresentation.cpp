@@ -4,10 +4,10 @@ MapRepresentation::MapRepresentation(int argc, char *argv[]){
     ros::init(argc, argv, "map_representation");
     ros::NodeHandle handle;
     
-    std::string lineTopic;
-    ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/stitched_line_topic",
-                      lineTopic);
-    line_sub = handle.subscribe(lineTopic, 1, &MapRepresentation::lineCallback, this);
+    std::string resultTopic;
+    ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/results_topic",
+                      resultTopic);
+    result_sub = handle.subscribe(resultTopic, 1, &MapRepresentation::stitchingCallback, this);
 
     std::string mapTopic;
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/map_representation/published/map_topic",
@@ -38,18 +38,18 @@ void MapRepresentation::runNode(){
     }
 }
 
-void MapRepresentation::lineCallback(const mapping_msgs::SegmentLineVector& msg){
+void MapRepresentation::stitchingCallback(const mapping_msgs::StitchingResults& msg){
     ROS_INFO("Received segment line vector representing map");
-    segLineVec = msg;
+    stitchResults = msg;
     receivedLines = true; // start processing the lines to create the map
 }
 
 void MapRepresentation::populateGrid(){
-    std::vector<mapping_msgs::LineVector>& segmentLines = segLineVec.segments;
+    std::vector<mapping_msgs::LineVector>& segmentLines = stitchResults.lines.segments;
 
     MinMaxXY gridBounds = findSegmentBounds(segmentLines);
-    translateToOrigin(segLineVec.segments, gridBounds);
-    alignToAxes(segLineVec.segments);
+    translateToOrigin(segmentLines, gridBounds);
+    alignToAxes(segmentLines);
     ROS_INFO_STREAM("Grid bounds: " << gridBounds);
 
     // Set the width and height of the grid in cells based on the bounds of the

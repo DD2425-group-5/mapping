@@ -35,6 +35,7 @@ private:
     float distmu, diststd;
 
     bool recordSegment;
+    bool gotObject; // track whether an object was seen this loop.
     mapping_msgs::MapSegment currentSegment;
     std::vector<mapping_msgs::MapSegment> segments; // not sure if needed - also storing rosbag
     
@@ -56,7 +57,7 @@ private:
     
     // other functions
     void addPoint(hardware_msgs::Odometry odom, hardware_msgs::IRDists ir,
-                  vision_master::object_found obj);
+                  vision_master::object_found obj, bool gotObject);
     void saveSegment(mapping_msgs::MapSegment seg);
     void endSegment(float turnDegrees);
     mapping_msgs::SegmentPoint generateSimulatedPoint();

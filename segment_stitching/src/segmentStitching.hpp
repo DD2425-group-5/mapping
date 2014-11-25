@@ -2,6 +2,7 @@
 #include <iostream>
 #include <limits>
 #include <math.h>
+#include <utility>
 #include <rosbag/bag.h>
 #include <rosbag/query.h>
 #include <rosbag/view.h>
@@ -21,6 +22,12 @@
 #include "mapping_msgs/Line.h"
 #include "mapping_msgs/LineVector.h"
 #include "mapping_msgs/SegmentLineVector.h"
+#include "mapping_msgs/Object.h"
+#include "mapping_msgs/ObjectVector.h"
+#include "mapping_msgs/SegmentObjectVector.h"
+#include "mapping_msgs/StitchingResults.h"
+#include "vision_master/object_found.h"
+
 
 class IRSensor {
 public:
@@ -84,13 +91,12 @@ private:
     std::vector<IRSensor> sensors;
     float ransacThreshold;
    
-    
     pcl::PointXYZ rotatedStartPoint;
     pcl::PointXYZ rotatedEndPoint;
     ros::Publisher segcloud_pub;
     ros::Publisher linemarker_pub;
     ros::Publisher markerArray_pub;
-    ros::Publisher stitched_pub;
+    ros::Publisher stitchedResults_pub;
 
     void runNode();
     std::vector<Line> extractLinesFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
@@ -98,19 +104,22 @@ private:
     Line extractLineFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
                                      float ransacThreshold,
                                      std::vector<int>* inliers);
-    void segmentPointToMeasurements(mapping_msgs::SegmentPoint pt,
-                                    pcl::PointCloud<pcl::PointXYZ>::Ptr measurements);
-    void segmentToMeasurements(mapping_msgs::MapSegment segment,
-                               pcl::PointCloud<pcl::PointXYZ>::Ptr measurements);
+    void segmentPointToMeasurements(const mapping_msgs::SegmentPoint& pt,
+                                    pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
+                                    mapping_msgs::ObjectVector& objects);
     
-    Line rotateLine(Line lineToRotate, float angle);
-    std::vector<std::vector<Line> > stitchSegmentLines(std::vector<std::vector<Line> > linesInSegments);
+    void segmentToMeasurements(const mapping_msgs::MapSegment& segment,
+                               pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,
+                               mapping_msgs::ObjectVector& objects);
+    
+    Line rotateLine(const Line& lineToRotate, float angle);
+    std::vector<std::vector<Line> > stitchSegmentLines(const std::vector<std::vector<Line> >& linesInSegments);
     void populateSensorPositions(ros::NodeHandle handle);
-    void publishFinalLines(std::vector<std::vector<Line> > lines);
-    void tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, std::vector<Line> lines);
-    visualization_msgs::Marker makeLineMarkers(std::vector<Line> lines, std::string markerRef);
-    void publishCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cl);
-    void publishSegmentLines(std::vector<std::vector<Line> > lines);
-};
-
+    void publishFinalMessages(const std::vector<std::vector<Line> >& lines,
+                              const mapping_msgs::SegmentObjectVector& objects);
     
+    void tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, const std::vector<Line>& lines);
+    visualization_msgs::Marker makeLineMarkers(const std::vector<Line>& lines, std::string markerRef);
+    void publishCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cl);
+    void publishSegmentLines(const std::vector<std::vector<Line> >& lines);
+};
