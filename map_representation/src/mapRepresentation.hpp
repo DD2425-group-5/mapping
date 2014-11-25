@@ -11,10 +11,6 @@
 #include "maputil/maputil.hpp"
 #include <nav_msgs/OccupancyGrid.h>
 #include <geometry_msgs/Polygon.h>
-#include <occupancy_grid_utils/coordinate_conversions.h>
-#include <occupancy_grid_utils/ray_tracer.h>
-#include <occupancy_grid_utils/impl/ray_trace_iterator.h>
-#include <occupancy_grid_utils/geometry.h>
 
 struct MinMaxXY {
     MinMaxXY(float _minX, float _maxX, float _minY, float _maxY) : minX(_minX), maxX(_maxX), minY(_minY), maxY(_maxY){}

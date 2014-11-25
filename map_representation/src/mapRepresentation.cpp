@@ -1,8 +1,5 @@
 #include "mapRepresentation.hpp"
 
-// Shorten the grid utils namespace
-namespace ocutil = occupancy_grid_utils;
-
 MapRepresentation::MapRepresentation(int argc, char *argv[]){
     ros::init(argc, argv, "map_representation");
     ros::NodeHandle handle;
