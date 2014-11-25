@@ -48,11 +48,10 @@ void MapRepresentation::lineCallback(const mapping_msgs::SegmentLineVector& msg)
 }
 
 void MapRepresentation::populateGrid(){
-    std::vector<mapping_msgs::LineVector> segmentLines = segLineVec.segments;
+    std::vector<mapping_msgs::LineVector>& segmentLines = segLineVec.segments;
+
     MinMaxXY gridBounds = findSegmentBounds(segmentLines);
-
-    translateToOrigin(segmentLines, gridBounds);
-
+    translateToOrigin(segLineVec.segments, gridBounds);
     ROS_INFO_STREAM("Grid bounds: " << gridBounds);
 
     // Set the width and height of the grid in cells based on the bounds of the
@@ -64,24 +63,36 @@ void MapRepresentation::populateGrid(){
     grid.info.height = (int)(std::ceil(heightMetres/grid.info.resolution));
     // initialise the grid data, with each cell undefined.
     grid.data = std::vector<signed char>(grid.info.width * grid.info.height, MapUtil::UNKNOWN);
-    ROS_INFO("Number of cells in grid: %d", (int)grid.data.size());
 
-    ROS_INFO_STREAM("Grid info:" << grid.info);
+    // int bl = MapUtil::getIndexAtPoint(grid.info,0,0);
+    // int br = MapUtil::getIndexAtPoint(grid.info,11.5,0);
+    // int tl = MapUtil::getIndexAtPoint(grid.info,0,18);
+    // int tr = MapUtil::getIndexAtPoint(grid.info,11.5,18);
+
+    // ROS_INFO("Grid vector length: %d", (int)grid.data.size());
+    // grid.data[bl] = 0;
+    // grid.data[br] = 50;
+    // grid.data[tl] = 100;
+    // grid.data[tr] = 150;
+    // ROS_INFO_STREAM("Grid info:" << grid.info);
+
+
     // iterate over all the lines received 
     std::vector<mapping_msgs::LineVector>::iterator it = segmentLines.begin();
     for (; it != segmentLines.end(); it++) {
         mapping_msgs::LineVector segment = *it;
-        // Find the bounds of a single segment
+        // // Find the bounds of a single segment
 
-        MinMaxXY segmentBounds = findSegmentBounds(segment);
-        // get the polygon representing the bound, will be a rectangle
-        ROS_INFO_STREAM("Bounds of segment " << it - segmentLines.begin() << ": " << segmentBounds);
-        geometry_msgs::Polygon bound = boundsToPolygon(segmentBounds);
-        ROS_INFO_STREAM("Polygon created from bounds: " << bound);
-        // set the value of all cells in the polygon to empty
-        setCellsInBounds(bound, MapUtil::UNOCCUPIED);
-        // for each individual line (wall) in the segment, set cells which fall under
-        // the line to occupied.
+        // MinMaxXY segmentBounds = findSegmentBounds(segment);
+        // // get the polygon representing the bound, will be a rectangle
+        // ROS_INFO_STREAM("Bounds of segment " << it - segmentLines.begin() << ": " << segmentBounds);
+        // geometry_msgs::Polygon bound = boundsToPolygon(segmentBounds);
+        // ROS_INFO_STREAM("Polygon created from bounds: " << bound);
+        // // set the value of all cells in the polygon to empty
+        // setCellsInBounds(bound, MapUtil::UNOCCUPIED);
+
+        // // for each individual line (wall) in the segment, set cells which fall under
+        // // the line to occupied.
         std::vector<mapping_msgs::Line> linesInSegment = segment.lines;
         for (size_t i = 0; i < linesInSegment.size(); i++){
             setCellsOnLine(linesInSegment[i], MapUtil::OCCUPIED);
@@ -92,24 +103,26 @@ void MapRepresentation::populateGrid(){
 /**
  * Translate the lines in segmentLines to the origin. Modifies the segmentLines in place.
  */
-void MapRepresentation::translateToOrigin(std::vector<mapping_msgs::LineVector>& segmentLines, MinMaxXY gridBounds){
+void MapRepresentation::translateToOrigin(std::vector<mapping_msgs::LineVector>& segmentLines,
+                                          const MinMaxXY& gridBounds){
     for (size_t segmentIterator = 0; segmentIterator < segmentLines.size(); segmentIterator++){
-        mapping_msgs::LineVector currentSegment = segmentLines[segmentIterator];
-        for (size_t lineIterator = 0; lineIterator < currentSegment.lines.size(); lineIterator++){ 
-            mapping_msgs::Line currentLine = currentSegment.lines[lineIterator];
+        mapping_msgs::LineVector& currentSegment = segmentLines[segmentIterator];
+        for (size_t lineIterator = 0; lineIterator < currentSegment.lines.size(); lineIterator++){
+            mapping_msgs::Line& currentLine = currentSegment.lines[lineIterator];
             currentLine.start.x -= gridBounds.minX;
             currentLine.start.y -= gridBounds.minY;
             currentLine.end.x   -= gridBounds.minX;
             currentLine.end.y   -= gridBounds.minY;
+            ROS_INFO_STREAM(currentLine);
         }
-     }
+    }
 }
 
 /**
  * Find min and max of the set of linevectors given, in metres. Basically the
  * bounding box.
  */
-MinMaxXY MapRepresentation::findSegmentBounds(std::vector<mapping_msgs::LineVector> segmentLines) {
+MinMaxXY MapRepresentation::findSegmentBounds(const std::vector<mapping_msgs::LineVector>& segmentLines) {
     float minX = std::numeric_limits<float>::max();
     float maxX = -std::numeric_limits<float>::max();
     float minY = std::numeric_limits<float>::max();
@@ -128,7 +141,7 @@ MinMaxXY MapRepresentation::findSegmentBounds(std::vector<mapping_msgs::LineVect
  * Find the min and max of a single vector of lines, returning the bounding box
  * of those lines.
  */
-MinMaxXY MapRepresentation::findSegmentBounds(mapping_msgs::LineVector segmentLine){
+MinMaxXY MapRepresentation::findSegmentBounds(const mapping_msgs::LineVector& segmentLine){
     float minX = std::numeric_limits<float>::max();
     float maxX = -std::numeric_limits<float>::max();
     float minY = std::numeric_limits<float>::max();
@@ -144,13 +157,17 @@ MinMaxXY MapRepresentation::findSegmentBounds(mapping_msgs::LineVector segmentLi
     return MinMaxXY(minX, maxX, minY, maxY);
 }
 
+
+
 /**
  * Sets the values of minX, maxX, minY, maxY by comparing to the given MinMaxXY
  * struct. if any of the values are less than or equal to their counterparts
  * given in the parameters, their values are modified to correspond to values in
  * the struct.
  */
-void MapRepresentation::setMinMaxFromStruct(MinMaxXY comp, float& minX, float& maxX, float& minY, float& maxY){
+void MapRepresentation::setMinMaxFromStruct(const MinMaxXY& comp,
+                                            float& minX, float& maxX,
+                                            float& minY, float& maxY){
     if (comp.minX < minX){
         minX = comp.minX;
     }
@@ -169,7 +186,7 @@ void MapRepresentation::setMinMaxFromStruct(MinMaxXY comp, float& minX, float& m
 /**
  * Find the minimum and maximum values of x and y on the specified line.
  */
-MinMaxXY MapRepresentation::lineMinMax(mapping_msgs::Line l){
+MinMaxXY MapRepresentation::lineMinMax(const mapping_msgs::Line& l){
     float minX = l.start.x < l.end.x ? l.start.x : l.end.x;
     float maxX = l.start.x > l.end.x ? l.start.x : l.end.x;
     float minY = l.start.y < l.end.y ? l.start.y : l.end.y;
@@ -182,32 +199,28 @@ MinMaxXY MapRepresentation::lineMinMax(mapping_msgs::Line l){
  * Gets the bounding box of the lines provided. Takes into account the fact
  * that the lines may be of different length and orientation.
  */
-geometry_msgs::Polygon MapRepresentation::boundsToPolygon(MinMaxXY bounds){
+geometry_msgs::Polygon MapRepresentation::boundsToPolygon(const MinMaxXY& bounds){
     geometry_msgs::Polygon poly;
     
     ROS_INFO_STREAM("boundsToPolygon received bounds: " << bounds);
     geometry_msgs::Point32 botLeft;
     botLeft.x = bounds.minX;
     botLeft.y = bounds.minY;
-    botLeft.z = 0;
     ROS_INFO_STREAM("Bottom left point: " << botLeft);
 
     geometry_msgs::Point32 topLeft;
     topLeft.x = bounds.minX;
     topLeft.y = bounds.maxY;
-    topLeft.z = 0;
     ROS_INFO_STREAM("Top left point: " << topLeft);
 
     geometry_msgs::Point32 topRight;
     topRight.x = bounds.maxX;
     topRight.y = bounds.maxY;
-    topRight.z = 0;
     ROS_INFO_STREAM("Top right point: " << topRight);
 
     geometry_msgs::Point32 botRight;
     botRight.x = bounds.maxX;
     botRight.y = bounds.minY;
-    botRight.z = 0;
     ROS_INFO_STREAM("Bottom right point: " << botRight);
     
     // push points onto the polygon in an order where they make a rectangle.
@@ -223,45 +236,27 @@ geometry_msgs::Polygon MapRepresentation::boundsToPolygon(MinMaxXY bounds){
  * Set cells in the given polygon on the grid to the specified value. It is
  * assumed that the polygon lies inside the bounds of the grid
  */
-void MapRepresentation::setCellsInBounds(geometry_msgs::Polygon bounds, signed char value){
+void MapRepresentation::setCellsInBounds(const geometry_msgs::Polygon& bounds, signed char value){
     // get cells within the polygon
-    std::set<ocutil::Cell> cells = occupancy_grid_utils::cellsInConvexPolygon(grid.info, bounds);
-    int count = 0;
-    for (std::set<ocutil::Cell>::iterator cell = cells.begin(); cell != cells.end(); cell++) {
-        // Get the index corresponding to the cell
-        ocutil::index_t ind = ocutil::cellIndex(grid.info, *cell);
-        // set the cell to the specified value in the data array
-        grid.data[ind] = value;
-        count++;
+    std::vector<int> inds = MapUtil::indicesInAlignedRectangle(grid.info, bounds);
+    for (size_t i = 0; i < inds.size(); i++){
+        grid.data[i] = value;
     }
-
-    ROS_INFO("Cells in polygon: %d", count);
 }
 
 /**
  * Projects a line onto the grid, setting cells which fall on the line to the
  * specified value.
  */
-void MapRepresentation::setCellsOnLine(mapping_msgs::Line lineToProject, signed char value){
-    ROS_INFO_STREAM("Line to project: " << lineToProject);
-    ocutil::RayTraceIterRange iterators = ocutil::rayTrace(grid.info,
-                                                           lineToProject.start,
-                                                           lineToProject.end,
-                                                           true,
-                                                           true);
-    ocutil::RayTraceIterator iterator = iterators.first;
-    ocutil::RayTraceIterator iteratorEnd = iterators.second;
-    
-    int count = 0;
-    // Run the first iterator until it hits the position of the second iterator.
-    for(; !(iterator == iteratorEnd); iterator++ ){
-        // get the index corresponding to the cell pointed to by the iterator
-        ocutil::index_t ind = ocutil::cellIndex(grid.info, *iterator);
-        // set the index to the specified value
-        grid.data[ind] = value;
-    }
+void MapRepresentation::setCellsOnLine(const mapping_msgs::Line& line, signed char value){
+    //ROS_INFO_STREAM("Line to project: " << line);
+        
+    std::vector<int> inds = MapUtil::indicesOnAlignedLine(grid.info,
+                                                          MapUtil::alignLineToAxis(line));
 
-    ROS_INFO("Cells on line: %d", count);
+    for(size_t i = 0; i < inds.size(); i++ ){
+        grid.data[i] = value;
+    }
 }
 
 int main(int argc, char *argv[])

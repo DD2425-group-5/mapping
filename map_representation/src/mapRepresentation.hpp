@@ -51,13 +51,13 @@ private:
     void runNode();
     void lineCallback(const mapping_msgs::SegmentLineVector& msg);
     void populateGrid();
-    MinMaxXY findSegmentBounds(std::vector<mapping_msgs::LineVector> segmentLines);
-    MinMaxXY findSegmentBounds(mapping_msgs::LineVector segmentLine);
-    void setMinMaxFromStruct(MinMaxXY comp, float& minX, float& maxX, float& minY, float& maxY);
-    void setCellsInBounds(geometry_msgs::Polygon bounds, signed char value);
-    void setCellsOnLine(mapping_msgs::Line l, signed char value);
-    geometry_msgs::Polygon boundsToPolygon(MinMaxXY bounds);
-    MinMaxXY lineMinMax(mapping_msgs::Line l);
-    void translateToOrigin(std::vector<mapping_msgs::LineVector>& segmentLines, MinMaxXY gridBounds);
+    MinMaxXY findSegmentBounds(const std::vector<mapping_msgs::LineVector>& segmentLines);
+    MinMaxXY findSegmentBounds(const mapping_msgs::LineVector& segmentLine);
+    void setMinMaxFromStruct(const MinMaxXY& comp, float& minX, float& maxX, float& minY, float& maxY);
+    void setCellsInBounds(const geometry_msgs::Polygon& bounds, signed char value);
+    void setCellsOnLine(const mapping_msgs::Line& l, signed char value);
+    geometry_msgs::Polygon boundsToPolygon(const MinMaxXY& bounds);
+    MinMaxXY lineMinMax(const mapping_msgs::Line& l);
+    void translateToOrigin(std::vector<mapping_msgs::LineVector>& segmentLines, const MinMaxXY& gridBounds);
 };
 
