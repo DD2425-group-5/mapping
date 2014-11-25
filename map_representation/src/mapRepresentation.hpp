@@ -59,5 +59,6 @@ private:
     geometry_msgs::Polygon boundsToPolygon(const MinMaxXY& bounds);
     MinMaxXY lineMinMax(const mapping_msgs::Line& l);
     void translateToOrigin(std::vector<mapping_msgs::LineVector>& segmentLines, const MinMaxXY& gridBounds);
+    void alignToAxes(std::vector<mapping_msgs::LineVector>& segmentLines);
 };
 

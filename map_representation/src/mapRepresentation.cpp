@@ -52,6 +52,7 @@ void MapRepresentation::populateGrid(){
 
     MinMaxXY gridBounds = findSegmentBounds(segmentLines);
     translateToOrigin(segLineVec.segments, gridBounds);
+    alignToAxes(segLineVec.segments);
     ROS_INFO_STREAM("Grid bounds: " << gridBounds);
 
     // Set the width and height of the grid in cells based on the bounds of the
@@ -64,32 +65,18 @@ void MapRepresentation::populateGrid(){
     // initialise the grid data, with each cell undefined.
     grid.data = std::vector<signed char>(grid.info.width * grid.info.height, MapUtil::UNKNOWN);
 
-    // int bl = MapUtil::getIndexAtPoint(grid.info,0,0);
-    // int br = MapUtil::getIndexAtPoint(grid.info,11.5,0);
-    // int tl = MapUtil::getIndexAtPoint(grid.info,0,18);
-    // int tr = MapUtil::getIndexAtPoint(grid.info,11.5,18);
-
-    // ROS_INFO("Grid vector length: %d", (int)grid.data.size());
-    // grid.data[bl] = 0;
-    // grid.data[br] = 50;
-    // grid.data[tl] = 100;
-    // grid.data[tr] = 150;
-    // ROS_INFO_STREAM("Grid info:" << grid.info);
-
-
     // iterate over all the lines received 
     std::vector<mapping_msgs::LineVector>::iterator it = segmentLines.begin();
     for (; it != segmentLines.end(); it++) {
         mapping_msgs::LineVector segment = *it;
-        // // Find the bounds of a single segment
-
-        // MinMaxXY segmentBounds = findSegmentBounds(segment);
-        // // get the polygon representing the bound, will be a rectangle
-        // ROS_INFO_STREAM("Bounds of segment " << it - segmentLines.begin() << ": " << segmentBounds);
-        // geometry_msgs::Polygon bound = boundsToPolygon(segmentBounds);
-        // ROS_INFO_STREAM("Polygon created from bounds: " << bound);
-        // // set the value of all cells in the polygon to empty
-        // setCellsInBounds(bound, MapUtil::UNOCCUPIED);
+        // Find the bounds of a single segment
+        MinMaxXY segmentBounds = findSegmentBounds(segment);
+        // get the polygon representing the bound, will be a rectangle
+        ROS_INFO_STREAM("Bounds of segment " << it - segmentLines.begin() << ": " << segmentBounds);
+        geometry_msgs::Polygon bound = boundsToPolygon(segmentBounds);
+        ROS_INFO_STREAM("Polygon created from bounds: " << bound);
+        // set the value of all cells in the polygon to empty
+        setCellsInBounds(bound, MapUtil::UNOCCUPIED);
 
         // // for each individual line (wall) in the segment, set cells which fall under
         // // the line to occupied.
@@ -105,15 +92,27 @@ void MapRepresentation::populateGrid(){
  */
 void MapRepresentation::translateToOrigin(std::vector<mapping_msgs::LineVector>& segmentLines,
                                           const MinMaxXY& gridBounds){
-    for (size_t segmentIterator = 0; segmentIterator < segmentLines.size(); segmentIterator++){
-        mapping_msgs::LineVector& currentSegment = segmentLines[segmentIterator];
-        for (size_t lineIterator = 0; lineIterator < currentSegment.lines.size(); lineIterator++){
-            mapping_msgs::Line& currentLine = currentSegment.lines[lineIterator];
+    for (size_t segment = 0; segment < segmentLines.size(); segment++){
+        mapping_msgs::LineVector& currentSegment = segmentLines[segment];
+        for (size_t line = 0; line < currentSegment.lines.size(); line++){
+            mapping_msgs::Line& currentLine = currentSegment.lines[line];
             currentLine.start.x -= gridBounds.minX;
             currentLine.start.y -= gridBounds.minY;
             currentLine.end.x   -= gridBounds.minX;
             currentLine.end.y   -= gridBounds.minY;
-            ROS_INFO_STREAM(currentLine);
+        }
+    }
+}
+
+/**
+ * Align the given segment lines to the x and y axes, modifying in place.
+ */
+void MapRepresentation::alignToAxes(std::vector<mapping_msgs::LineVector>& segmentLines){
+    for (size_t segment = 0; segment < segmentLines.size(); segment++){
+        mapping_msgs::LineVector& currentSegment = segmentLines[segment];
+        for (size_t line = 0; line < currentSegment.lines.size(); line++){
+            MapUtil::alignLineToAxisInPlace(currentSegment.lines[line]);
+            
         }
     }
 }
@@ -234,28 +233,28 @@ geometry_msgs::Polygon MapRepresentation::boundsToPolygon(const MinMaxXY& bounds
 
 /**
  * Set cells in the given polygon on the grid to the specified value. It is
- * assumed that the polygon lies inside the bounds of the grid
+ * assumed that the polygon lies inside the bounds of the grid, and that it is
+ * aligned to the x and y axes.
  */
 void MapRepresentation::setCellsInBounds(const geometry_msgs::Polygon& bounds, signed char value){
     // get cells within the polygon
     std::vector<int> inds = MapUtil::indicesInAlignedRectangle(grid.info, bounds);
     for (size_t i = 0; i < inds.size(); i++){
-        grid.data[i] = value;
+        grid.data[inds[i]] = value;
     }
 }
 
 /**
  * Projects a line onto the grid, setting cells which fall on the line to the
- * specified value.
+ * specified value. Assumes the line given is aligned to either the x or y axis
  */
 void MapRepresentation::setCellsOnLine(const mapping_msgs::Line& line, signed char value){
     //ROS_INFO_STREAM("Line to project: " << line);
         
-    std::vector<int> inds = MapUtil::indicesOnAlignedLine(grid.info,
-                                                          MapUtil::alignLineToAxis(line));
+    std::vector<int> inds = MapUtil::indicesOnAlignedLine(grid.info, line);
 
     for(size_t i = 0; i < inds.size(); i++ ){
-        grid.data[i] = value;
+        grid.data[inds[i]] = value;
     }
 }
 
