@@ -22,6 +22,8 @@ SegmentStorage::SegmentStorage(int argc, char *argv[]){
     ROSUtil::getParam(handle, "/topic_list/controller_topics/wallfollower/published/turning_topic",
                       info_sub_topic);
     sub_controlInfo = handle.subscribe(info_sub_topic, 1000, &SegmentStorage::turnCallback, this);
+
+    sub_objDetect = handle.subscribe("/vision/detection", 1000, &SegmentStorage::detectCallback, this);
     
     // The bag will use the segmentTopic string to define the topic which
     // segments are saved to
@@ -82,17 +84,30 @@ void SegmentStorage::runNode(){
                 ROS_INFO("---------- SIMULATED ----------");
                 currentSegment.pointList.push_back(generateSimulatedPoint());
             } else {
-                addPoint(latestOdom, latestIRDist);
+                // first, add a point of the combined latest data received
+                addPoint(latestOdom, latestIRDist, latestObject);
+                // then, clear all the data - in particular for latest object,
+                // this might not be updated in the next loop, and we do not
+                // want to keep it once it is added.
+                hardware_msgs::Odometry clearOdom;
+                hardware_msgs::IRDists clearIR;
+                vision_master::object_found clearObject;
+                latestOdom = clearOdom;
+                latestIRDist = clearIR;
+                latestObject = clearObject;
             }
         }
         loopRate.sleep();
     }
 }
 
-void SegmentStorage::addPoint(hardware_msgs::Odometry odom, hardware_msgs::IRDists ir){
+void SegmentStorage::addPoint(hardware_msgs::Odometry odom,
+                              hardware_msgs::IRDists ir,
+                              vision_master::object_found obj){
     mapping_msgs::SegmentPoint p;
     p.distances = ir;
     p.odometry = odom;
+    p.object = obj;
     
     currentSegment.pointList.push_back(p);
 }
@@ -148,6 +163,10 @@ void SegmentStorage::odomCallback(const hardware_msgs::Odometry::ConstPtr& msg){
     latestOdom = *msg;
 }
 
+void SegmentStorage::detectCallback(const vision_master::object_found::ConstPtr& msg){
+    latestObject = *msg;
+}
+
 /**
  * Subscribe to turn information from the motor controller. recording only takes
  * place during straight line motions. Assume that true is sent when the turn
@@ -155,7 +174,7 @@ void SegmentStorage::odomCallback(const hardware_msgs::Odometry::ConstPtr& msg){
  *
  * This callback controls when segments end and begin.
  */
-void SegmentStorage::turnCallback(const controller_msgs::Turning msg){
+void SegmentStorage::turnCallback(const controller_msgs::Turning& msg){
     if (msg.isTurning && recordSegment) { // starting turn - end current segment
         endSegment(msg.degrees);
     } else if (!msg.isTurning && !recordSegment){ // turn finished, start new segment

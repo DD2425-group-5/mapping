@@ -11,6 +11,7 @@
 #include "mapping_msgs/MapSegment.h"
 #include "mapping_msgs/SegmentPoint.h"
 #include "controller_msgs/Turning.h"
+#include "vision_master/object_found.h"
 
 class SegmentStorage {
 public:
@@ -20,11 +21,13 @@ private:
     ros::Subscriber sub_irdist;
     ros::Subscriber sub_odometry;
     ros::Subscriber sub_controlInfo;
+    ros::Subscriber sub_objDetect;
 
     // simulation
     std::default_random_engine generator;
     bool simulate;
     float simulatedDist;
+    // mu and std for gaussians
     float s0mu, s0std;
     float s1mu, s1std;
     float s2mu, s2std;
@@ -37,19 +40,23 @@ private:
     
     hardware_msgs::Odometry latestOdom;
     hardware_msgs::IRDists latestIRDist;
+    vision_master::object_found latestObject;
+    
     rosbag::Bag segmentBag;
     std::string segmentTopic;
     
     // callbacks
     void irCallback(const hardware_msgs::IRDists::ConstPtr& msg);
     void odomCallback(const hardware_msgs::Odometry::ConstPtr& msg);
-    void turnCallback(const controller_msgs::Turning msg);
-    
+    void turnCallback(const controller_msgs::Turning& msg);
+    void detectCallback(const vision_master::object_found::ConstPtr& msg);
+        
     // main
     void runNode();
     
     // other functions
-    void addPoint(hardware_msgs::Odometry odom, hardware_msgs::IRDists ir);
+    void addPoint(hardware_msgs::Odometry odom, hardware_msgs::IRDists ir,
+                  vision_master::object_found obj);
     void saveSegment(mapping_msgs::MapSegment seg);
     void endSegment(float turnDegrees);
     mapping_msgs::SegmentPoint generateSimulatedPoint();

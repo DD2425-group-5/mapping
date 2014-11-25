@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(mapping_msgs)
 
-find_package(catkin REQUIRED COMPONENTS message_generation std_msgs hardware_msgs geometry_msgs)
+find_package(catkin REQUIRED COMPONENTS message_generation std_msgs hardware_msgs geometry_msgs vision_master)
 
 add_message_files(
   FILES
@@ -17,12 +17,13 @@ generate_messages(
   std_msgs
   hardware_msgs
   geometry_msgs
+  vision_master
 )
 
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES blobdetection
-  CATKIN_DEPENDS std_msgs hardware_msgs message_runtime geometry_msgs
+  CATKIN_DEPENDS std_msgs hardware_msgs message_runtime geometry_msgs vision_master
 #  DEPENDS visionutil
 )
 
