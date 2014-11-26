@@ -111,7 +111,9 @@ void SegmentStorage::addPoint(hardware_msgs::Odometry odom,
     p.odometry = odom;
     p.object = obj;
     p.gotObject = gotObject;
-    
+    if (p.gotObject){
+        ROS_INFO("%%%%%%%%%%%%%%%%%%%% GOT OBJECT %%%%%%%%%%%%%%%%%%%%");
+    }
     currentSegment.pointList.push_back(p);
 }
 
@@ -167,7 +169,7 @@ void SegmentStorage::odomCallback(const hardware_msgs::Odometry::ConstPtr& msg){
 }
 
 void SegmentStorage::detectCallback(const vision_master::object_found::ConstPtr& msg){
-    ROS_WARN("******************** OBJECT RECEIVED ********************");
+    ROS_INFO("******************** OBJECT RECEIVED ********************");
     latestObject = *msg;
     gotObject = true;
 }
