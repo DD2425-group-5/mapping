@@ -75,18 +75,22 @@ void SegmentStitching::runNode(){
         // increase the accuracy.
         mapping_msgs::ObjectVector objects;
         
+
+        
         segmentToMeasurements(mapSegments[segment], measurements, objects);
         
         // Extract the lines from this segment using ransac. This operation
         // destroys the measurement pointcloud
         std::vector<Line> lines = extractLinesFromMeasurements(measurements, ransacThreshold);
+        //tmpPublish(measurements, lines);
         segmentLines.push_back(lines);
         allSegmentObjects.segmentObjects.push_back(objects);
-//        tmpPublish(measurements, lines);
+
     }
     std::vector<std::vector<Line> > stitchedLines = processSegments(segmentLines, allSegmentObjects);
+    publishSegmentLines(stitchedLines);
     publishFinalMessages(stitchedLines, allSegmentObjects);
-//    publishSegmentLines(stitchedLines);
+
 }
 
 void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, const std::vector<Line>& lines){
@@ -110,11 +114,11 @@ void SegmentStitching::publishSegmentLines(const std::vector<std::vector<Line> >
         ar.markers.push_back(m);
     }
 
-    // ros::Rate loopRate(1);
-    // while (ros::ok()){
-    //     markerArray_pub.publish(ar);
-    //     loopRate.sleep();
-    // }
+    ros::Rate loopRate(1);
+    while (ros::ok()){
+        markerArray_pub.publish(ar);
+        loopRate.sleep();
+    }
 }
 
 void SegmentStitching::publishCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cl){
@@ -277,7 +281,7 @@ void SegmentStitching::segmentPointToMeasurements(const mapping_msgs::SegmentPoi
         // information, but the points generated from this need to be handled
         // differently.
         if (distances[i] > sensorUpperLimit || distances[i] < 0){
-            
+            break;
         }
         
         // naive way of getting point measurement - if sensor rotated -90,
@@ -321,7 +325,8 @@ std::vector<Line> SegmentStitching::extractLinesFromMeasurements(pcl::PointCloud
     // naive: extract two lines from each segment. TODO: extraction of lines
     // based on proportion of points remaining in the cloud once the first line
     // has been removed.
-    for (int i = 0; i < 2; i++) {
+    float trimmed_prop = 1;
+    for (int i = 0; i < 2 && trimmed_prop > 0.2; i++) {
         // ROS_INFO("Trimmed size: %d", (int)trimmed->size());
         // ROS_INFO("Processing size: %d", (int)processing->size());
 
@@ -341,7 +346,7 @@ std::vector<Line> SegmentStitching::extractLinesFromMeasurements(pcl::PointCloud
 
         // Update the points to be processed for the next loop
         *processing = *trimmed;
-    
+        trimmed_prop = processing->size()/measurements->size();
         std::cout << lines[i] << std::endl;
     }
 
@@ -522,29 +527,29 @@ std::vector<std::vector<Line> > SegmentStitching::processSegments(const std::vec
                     xDir=0;
                     yDir=1;
                 } else if (0==xDir && 1==yDir){ // going along y -> switch to going backwards on x
-                    xDir=-1;
+                    xDir=1;
                     yDir=0;
                 } else if (-1==xDir && 0==yDir){ // going backwards along x -> switch to going backwards on y
                     xDir=0;
                     yDir=-1;
                 } else { // going backwards along y -> switch to going along x
-                    xDir=1;
+                    xDir=-1;
                     yDir=0;
                 }
                 rotation+=90;
             } else if (turnDirection == mapping_msgs::MapSegment::RIGHT_TURN){
                 ROS_INFO("Segment %d is a right turn from the previous segment (rotated -90)", (int)i);
-                if (1==xDir && 0==yDir){
-                    xDir=0;
-                    yDir=-1;
-                } else if (0==xDir && -1==yDir){
-                    xDir=-1;
-                    yDir=0;
-                } else if (-1==xDir && 0==yDir){
+                if (1==xDir && 0==yDir){ // going along x axis -> switch to going along y axis
                     xDir=0;
                     yDir=1;
-                } else {
+                } else if (0==xDir && -1==yDir){ // going along negative y -> go along x
                     xDir=1;
+                    yDir=0;
+                } else if (-1==xDir && 0==yDir){ // going along negative x -> go along negative y
+                    xDir=0;
+                    yDir=1;
+                } else { // going along positive y -> go along negative x
+                    xDir=-1;
                     yDir=0;
                 }
                 rotation-=90;

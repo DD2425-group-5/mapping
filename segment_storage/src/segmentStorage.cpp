@@ -74,7 +74,7 @@ SegmentStorage::~SegmentStorage(){
 
 void SegmentStorage::runNode(){
     ROS_INFO("Starting segment recording.");
-    ros::Rate loopRate(10);
+    ros::Rate loopRate(30);
     while (ros::ok()){
         ros::spinOnce();
         if (recordSegment){
