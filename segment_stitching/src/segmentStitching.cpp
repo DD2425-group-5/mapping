@@ -84,7 +84,7 @@ void SegmentStitching::runNode(){
         allSegmentObjects.segmentObjects.push_back(objects);
 //        tmpPublish(measurements, lines);
     }
-    std::vector<std::vector<Line> > stitchedLines = stitchSegmentLines(segmentLines);
+    std::vector<std::vector<Line> > stitchedLines = processSegments(segmentLines, allSegmentObjects);
     publishFinalMessages(stitchedLines, allSegmentObjects);
 //    publishSegmentLines(stitchedLines);
 }
@@ -474,15 +474,19 @@ Line SegmentStitching::rotateLine(const Line& l, float angle){
  *
  * Should return the lines for the segments rotated and translated to the
  * correct position relative to the map.
+ *
+ * Also processes the objects, rotating them to correspond with segment
+ * rotations. The objects are modified in place.
  */
-std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(const std::vector<std::vector<Line> >& linesInSegments){
+std::vector<std::vector<Line> > SegmentStitching::processSegments(const std::vector<std::vector<Line> >& linesInSegments,
+                                                                  mapping_msgs::SegmentObjectVector& allSegmentObjects){
     ROS_INFO("==================== Stitching segments ====================");
     // Keep a list of the positions of the robot at the beginning and end of
     // each segment, relative to the map, as opposed to each segment.
     std::vector<pcl::PointXYZ> segmentPointChain;
     //segmentPointChain.push_back(pcl::PointXYZ(0,0,0)); // chain starts at the origin
     std::vector<std::vector<Line> > stitchedLines;
-    
+    std::vector<mapping_msgs::ObjectVector> segmentObjects = allSegmentObjects.segmentObjects;
     // update this point every loop to make it correspond to the start point of
     // the segment in the global frame
     pcl::PointXYZ segmentGlobalStart(0,0,0);
@@ -588,6 +592,19 @@ std::vector<std::vector<Line> > SegmentStitching::stitchSegmentLines(const std::
             tmpLines.push_back(tmpLine);
         }
         stitchedLines.push_back(tmpLines);
+
+        // loop over objects in this segment and rotate and translate them.
+        for (size_t obj = 0; obj < segmentObjects[i].objects.size(); obj++) {
+            mapping_msgs::Object& found = segmentObjects[i].objects[obj];
+
+            // rotate the point around the origin
+            if (rotation != 0){
+                found.location = PCLUtil::rotatePointAroundOriginXY(found.location, rotation);
+            }
+            // translate it to its location in the rotated segment.
+            found.location.x += segmentGlobalStart.x;
+            found.location.y += segmentGlobalStart.y;
+        }
             
         //Just add the difference and change the segmentEndPoint x and y
         float newX = xDir * segmentEnd.odometry.distanceTotal + segmentGlobalStart.x;

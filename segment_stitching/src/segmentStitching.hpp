@@ -115,7 +115,8 @@ private:
                                mapping_msgs::ObjectVector& objects);
     
     Line rotateLine(const Line& lineToRotate, float angle);
-    std::vector<std::vector<Line> > stitchSegmentLines(const std::vector<std::vector<Line> >& linesInSegments);
+    std::vector<std::vector<Line> > processSegments(const std::vector<std::vector<Line> >& linesInSegments, 
+                                                    mapping_msgs::SegmentObjectVector& allSegmentObjects);
     void populateSensorPositions(ros::NodeHandle handle);
     void publishFinalMessages(const std::vector<std::vector<Line> >& lines,
                               const mapping_msgs::SegmentObjectVector& objects);
