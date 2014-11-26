@@ -167,6 +167,7 @@ void SegmentStorage::odomCallback(const hardware_msgs::Odometry::ConstPtr& msg){
 }
 
 void SegmentStorage::detectCallback(const vision_master::object_found::ConstPtr& msg){
+    ROS_WARN("******************** OBJECT RECEIVED ********************");
     latestObject = *msg;
     gotObject = true;
 }
