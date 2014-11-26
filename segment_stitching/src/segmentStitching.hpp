@@ -96,7 +96,8 @@ private:
     ros::Publisher segcloud_pub;
     ros::Publisher linemarker_pub;
     ros::Publisher markerArray_pub;
-    ros::Publisher stitchedResults_pub;
+    ros::Publisher object_pub;
+    ros::Publisher line_pub;
 
     void runNode();
     std::vector<Line> extractLinesFromMeasurements(pcl::PointCloud<pcl::PointXYZ>::Ptr measurements,

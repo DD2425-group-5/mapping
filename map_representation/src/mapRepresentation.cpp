@@ -4,10 +4,16 @@ MapRepresentation::MapRepresentation(int argc, char *argv[]){
     ros::init(argc, argv, "map_representation");
     ros::NodeHandle handle;
     
-    std::string resultTopic;
-    ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/results_topic",
-                      resultTopic);
-    result_sub = handle.subscribe(resultTopic, 1, &MapRepresentation::stitchingCallback, this);
+    std::string lineTopic;
+    ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/line_topic",
+                      lineTopic);
+    line_sub = handle.subscribe(lineTopic, 1, &MapRepresentation::lineCallback, this);
+
+    std::string objectTopic;
+    ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/object_topic",
+                      objectTopic);
+    object_sub = handle.subscribe(objectTopic, 1, &MapRepresentation::objectCallback, this);
+
 
     std::string mapTopic;
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/map_representation/published/map_topic",
@@ -21,8 +27,8 @@ MapRepresentation::MapRepresentation(int argc, char *argv[]){
 
 void MapRepresentation::runNode(){
     ros::Rate checkRate(10);
-    // wait to receive lines from the topic
-    while (!receivedLines && ros::ok()){
+    // wait to receive lines and objects from the subscribed topics
+    while (!receivedLines && !receivedObjects && ros::ok()){
         checkRate.sleep();
         ros::spinOnce();
     }
@@ -38,14 +44,20 @@ void MapRepresentation::runNode(){
     }
 }
 
-void MapRepresentation::stitchingCallback(const mapping_msgs::StitchingResults& msg){
+void MapRepresentation::lineCallback(const mapping_msgs::SegmentLineVector& msg){
     ROS_INFO("Received segment line vector representing map");
-    stitchResults = msg;
+    segmentLinesVector = msg;
     receivedLines = true; // start processing the lines to create the map
 }
 
+void MapRepresentation::objectCallback(const mapping_msgs::SegmentObjectVector& msg){
+    ROS_INFO("Received segment object vector representing objects on map");
+    segmentObjectsVector = msg;
+    receivedObjects = true; // start processing the lines to create the map
+}
+
 void MapRepresentation::populateGrid(){
-    std::vector<mapping_msgs::LineVector>& segmentLines = stitchResults.lines.segments;
+    std::vector<mapping_msgs::LineVector>& segmentLines = segmentLinesVector.segments;
 
     MinMaxXY gridBounds = findSegmentBounds(segmentLines);
     translateToOrigin(segmentLines, gridBounds);

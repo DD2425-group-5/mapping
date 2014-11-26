@@ -18,10 +18,15 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
     linemarker_pub = handle.advertise<visualization_msgs::Marker>("/segment_stitching/linemarkers", 1);
     markerArray_pub = handle.advertise<visualization_msgs::MarkerArray>("/segment_stitching/markerarray", 1);
 	
-    std::string resultsTopic;
-    ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/results_topic",
-                      resultsTopic);
-    stitchedResults_pub = handle.advertise<mapping_msgs::StitchingResults>(resultsTopic, 1);
+    std::string lineTopic;
+    ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/line_topic",
+                      lineTopic);
+    line_pub = handle.advertise<mapping_msgs::SegmentLineVector>(lineTopic, 1);
+
+    std::string objectTopic;
+    ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_stitching/published/object_topic",
+                      objectTopic);
+    object_pub = handle.advertise<mapping_msgs::SegmentObjectVector>(objectTopic, 1);
 	
     // Initialise the locations of the IR sensors relative to the centre of the robot.
     populateSensorPositions(handle);
@@ -177,17 +182,12 @@ void SegmentStitching::publishFinalMessages(const std::vector<std::vector<Line> 
         slv.segments.push_back(sl);
     }
 
-    mapping_msgs::StitchingResults results;
-    results.lines = slv;
-    results.objects = objects;
-    
     ros::Rate loopRate(1);
     while (ros::ok()){
         loopRate.sleep();
-        stitchedResults_pub.publish(results);
+        line_pub.publish(slv);
+        object_pub.publish(objects);
     }
-    
-    ROS_INFO("Publishing complete");
 }
 
 /**

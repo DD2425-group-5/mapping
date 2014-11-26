@@ -35,22 +35,27 @@ class MapRepresentation {
 public:
     MapRepresentation(int argc, char *argv[]);
 private:
-    // subscriber for the lines created by the segment stitching
-    ros::Subscriber result_sub;
+    // subscriber for the lines and objects from segment stitching
+    ros::Subscriber line_sub;
+    ros::Subscriber object_sub;
     //tf::TransformBroadcaster br;
     ros::Publisher map_pub;
 
     // segment lines received from the segment stitching
-    mapping_msgs::StitchingResults stitchResults;
+    mapping_msgs::SegmentLineVector segmentLinesVector;
+    mapping_msgs::SegmentObjectVector segmentObjectsVector;
+    
     // map is stored in here
     nav_msgs::OccupancyGrid grid;
 
-    // whether lines have been received from segment stitching or not. Map is
-    // not constructed until this is true.
+    // whether lines and objects have been received from segment stitching or not. Map is
+    // not constructed until both of these are true.
     bool receivedLines;
+    bool receivedObjects;
     
     void runNode();
-    void stitchingCallback(const mapping_msgs::StitchingResults& msg);
+    void lineCallback(const mapping_msgs::SegmentLineVector& msg);
+    void objectCallback(const mapping_msgs::SegmentObjectVector& msg);
     void populateGrid();
     MinMaxXY findSegmentBounds(const std::vector<mapping_msgs::LineVector>& segmentLines);
     MinMaxXY findSegmentBounds(const mapping_msgs::LineVector& segmentLine);
