@@ -184,9 +184,9 @@ void SegmentStitching::publishFinalMessages(const std::vector<std::vector<Line> 
 
     ros::Rate loopRate(1);
     while (ros::ok()){
-        loopRate.sleep();
         line_pub.publish(slv);
         object_pub.publish(objects);
+        loopRate.sleep();
     }
 }
 
@@ -195,6 +195,9 @@ void SegmentStitching::publishFinalMessages(const std::vector<std::vector<Line> 
  * of the sensors
  */
 void SegmentStitching::populateSensorPositions(ros::NodeHandle handle){
+
+    ROSUtil::getParam(handle, "/robot_info/ir_error_threshold", sensorUpperLimit);
+    
     int numSensors;
     ROSUtil::getParam(handle, "/robot_info/num_sensors", numSensors);
     std::string xSuffix;
@@ -269,14 +272,21 @@ void SegmentStitching::segmentPointToMeasurements(const mapping_msgs::SegmentPoi
     pcl::PointXYZ odompt(0, odom.distanceTotal, 0);
     // only look at first 4 sensors, last 2 are front facing, assume either -90 or 90 rotation
     for (size_t i = 0; i < sensors.size() - 2; i++){
-        IRSensor s = sensors[i];
+        // Ignore any measurements which are too far or too close. 
+        // TODO - the distance measurements above the upper limit actually give
+        // information, but the points generated from this need to be handled
+        // differently.
+        if (distances[i] > sensorUpperLimit || distances[i] < 0){
+            
+        }
+        
         // naive way of getting point measurement - if sensor rotated -90,
         // subtract from x, otherwise add. The generated points will be rotated
         // later to match segment rotation if necessary
-        if (s.rotation == -90) { // might be dangerous, rotation is a float
+        if (sensors[i].rotation == -90) { // might be dangerous, rotation is a float
             distances[i] = -distances[i];
         }
-        pcl::PointXYZ p = s.asPCLPoint() + odompt + pcl::PointXYZ(distances[i], 0, 0);
+        pcl::PointXYZ p = sensors[i].asPCLPoint() + odompt + pcl::PointXYZ(distances[i], 0, 0);
         // std::cout << "adding " << s.asPCLPoint() << ", " << pcl::PointXYZ(distances[i], 0, 0) << std::endl;
         // std::cout << "result: " << p << std::endl;
         measurements->push_back(p);

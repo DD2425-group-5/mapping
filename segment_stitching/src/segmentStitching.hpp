@@ -89,6 +89,7 @@ private:
     rosbag::Bag segmentBag;
     std::vector<mapping_msgs::MapSegment> mapSegments;
     std::vector<IRSensor> sensors;
+    float sensorUpperLimit;
     float ransacThreshold;
    
     pcl::PointXYZ rotatedStartPoint;
