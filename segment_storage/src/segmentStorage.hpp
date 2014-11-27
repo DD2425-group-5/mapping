@@ -23,6 +23,9 @@ private:
     ros::Subscriber sub_controlInfo;
     ros::Subscriber sub_objDetect;
 
+    // rate for data gathering
+    int rate;
+
     // simulation
     std::default_random_engine generator;
     bool simulate;

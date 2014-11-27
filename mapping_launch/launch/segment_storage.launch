@@ -1,6 +1,8 @@
 <launch>
   <arg name="simulate" default="false" />
   <param name="/segment_storage/simulated/simulate" value="$(arg simulate)" />
+  <arg name="rate" default="30" />
+  <param name="/segment_storage/rate" value="$(arg rate)" />
   <!-- Simulation uses Gaussians, define mu and sigma values -->
   <!-- mean values for the sensor reading to simulate -->
   <param name="/segment_storage/simulated/s0mu" value="0.1" />

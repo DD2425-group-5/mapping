@@ -30,6 +30,9 @@ SegmentStorage::SegmentStorage(int argc, char *argv[]){
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_storage/bag_segment_topic",
                       segmentTopic);
 
+    // the rate is the rate at which messages are sent to the bag file
+    ROSUtil::getParam(handle, "/segment_storage/rate", rate);
+
     std::string segment_save_dir;
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/segment_storage/segment_save_dir",
                       segment_save_dir);
@@ -74,7 +77,7 @@ SegmentStorage::~SegmentStorage(){
 
 void SegmentStorage::runNode(){
     ROS_INFO("Starting segment recording.");
-    ros::Rate loopRate(10);
+    ros::Rate loopRate(rate);
     while (ros::ok()){
         ros::spinOnce();
         if (recordSegment){
