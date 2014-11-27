@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<package>
+  <name>map_representation</name>
+  <version>0.0.0</version>
+  <description>Package for representing and modifying the map</description>
+
+  <maintainer email="michalst@kth.se">michal</maintainer>
+
+  <license>BSD</license>
+
+  <author email="michalst@kth.se">Michal Staniaszek</author>
+  
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <run_depend>roscpp</run_depend>
+  <build_depend>nav_msgs</build_depend>
+  <run_depend>nav_msgs</run_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <run_depend>geometry_msgs</run_depend>
+  <build_depend>mapping_msgs</build_depend>
+  <run_depend>mapping_msgs</run_depend>
+  <build_depend>rosutil</build_depend>
+  <run_depend>rosutil</run_depend>
+  <build_depend>maputil</build_depend>
+  <run_depend>maputil</run_depend>
+
+  <export>
+  </export>
+</package>

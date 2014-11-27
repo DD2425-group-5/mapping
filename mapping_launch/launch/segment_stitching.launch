@@ -1,0 +1,10 @@
+<launch>
+  <!-- This argument defines which segment file will be read into the node.-->
+  <arg name="segfile"/>
+  <param name="/segment_stitching/input_file" value="$(arg segfile)" />
+  <arg name="ransacthresh" default="0.05" />
+  <param name="/segment_stitching/ransac_threshold" value="$(arg ransacthresh)" />
+  <rosparam file="$(find project_launch)/config/topic_names.yaml" command="load" />
+  <rosparam file="$(find project_launch)/config/global_params.yaml" command="load" />
+  <node name="segment_stitching" pkg="segment_stitching" type="segment_stitching" args="" output="screen" />
+</launch>

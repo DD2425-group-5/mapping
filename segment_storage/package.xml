@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<package>
+  <name>segment_storage</name>
+  <version>0.0.0</version>
+  <description>Package for recording and storing map segments</description>
+
+  <maintainer email="michalst@kth.se">michal</maintainer>
+
+  <license>BSD</license>
+
+  <author email="michalst@kth.se">Michal Staniaszek</author>
+  
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <run_depend>roscpp</run_depend> 
+  <build_depend>rosbag</build_depend>
+  <run_depend>rosbag</run_depend>
+  <build_depend>mapping_msgs</build_depend>
+  <run_depend>mapping_msgs</run_depend>
+  <build_depend>rosutil</build_depend>
+  <run_depend>rosutil</run_depend>
+  <build_depend>sysutil</build_depend>
+  <run_depend>sysutil</run_depend>
+  <build_depend>vision_master</build_depend>
+  <run_depend>vision_master</run_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <run_depend>geometry_msgs</run_depend>
+
+  
+  <!-- The export tag contains other, unspecified, tags -->
+  <export>
+    <!-- You can specify that this package is a metapackage here: -->
+    <!-- <metapackage/> -->
+
+    <!-- Other tools can request additional information be placed here -->
+
+  </export>
+</package>
