@@ -91,11 +91,11 @@ private:
     std::vector<IRSensor> sensors;
     float sensorUpperLimit;
     float ransacThreshold;
+    float minTrimProp;
    
     pcl::PointXYZ rotatedStartPoint;
     pcl::PointXYZ rotatedEndPoint;
     ros::Publisher segcloud_pub;
-    ros::Publisher linemarker_pub;
     ros::Publisher markerArray_pub;
     ros::Publisher object_pub;
     ros::Publisher line_pub;
@@ -124,8 +124,9 @@ private:
                               const mapping_msgs::SegmentObjectVector& objects,
                               const std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr >& clouds);
     
-    void tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, const std::vector<Line>& lines);
     visualization_msgs::Marker makeLineMarkers(const std::vector<Line>& lines, std::string markerRef);
+    void intermediatePublish(const std::vector<Line>& lines, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, float sleep);
     void publishCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cl);
-    void publishSegmentLines(const std::vector<std::vector<Line> >& lines);
+    void publishSegmentMarkers(const std::vector<std::vector<Line> >& lines);
+    void publishLineMarkers(const std::vector<Line>& lines);
 };

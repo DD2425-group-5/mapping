@@ -13,9 +13,9 @@ SegmentStitching::SegmentStitching(int argc, char *argv[]) {
                       segmentFile);
 
     ROSUtil::getParam(handle, "/segment_stitching/ransac_threshold", ransacThreshold);
+    ROSUtil::getParam(handle, "/segment_stitching/min_trim_prop", minTrimProp);
 
     segcloud_pub = handle.advertise<pcl::PointCloud<pcl::PointXYZ> >("/segment_stitching/segcloud", 1);
-    linemarker_pub = handle.advertise<visualization_msgs::Marker>("/segment_stitching/linemarkers", 1);
     markerArray_pub = handle.advertise<visualization_msgs::MarkerArray>("/segment_stitching/markerarray", 1);
 	
     std::string lineTopic;
@@ -83,7 +83,7 @@ void SegmentStitching::runNode(){
         std::vector<Line> lines = extractLinesFromMeasurements(measurements, ransacThreshold);
         segmentLines.push_back(lines);
         allSegmentObjects.segmentObjects.push_back(objects);
-//        tmpPublish(measurements, lines);
+        intermediatePublish(lines, measurements, 2);
     }
 
     std::vector<std::vector<Line> > stitchedLines = processSegments(segmentLines, allSegmentObjects, measurementClouds);
@@ -91,18 +91,26 @@ void SegmentStitching::runNode(){
     publishFinalMessages(stitchedLines, allSegmentObjects, measurementClouds);
 }
 
-void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, const std::vector<Line>& lines){
-    ros::Rate loopRate(10);
-    while (ros::ok()){
-        publishCloud(cl);
-        visualization_msgs::Marker m = makeLineMarkers(lines, "unspecifiedMarker");
-        linemarker_pub.publish(m);
-        loopRate.sleep();
-    }
+void SegmentStitching::intermediatePublish(const std::vector<Line>& lines, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, float sleep){
 
+    if (sleep > 0){
+        float slept = 0;
+        float pubInterval = sleep/10;
+        ros::Duration loop(pubInterval);
+        while(slept < sleep){
+            ROS_INFO("SLEEPING");
+            publishLineMarkers(lines);
+            publishCloud(cloud);
+            loop.sleep();
+            slept += pubInterval;
+        }
+    } else {
+        publishLineMarkers(lines);
+        publishCloud(cloud);
+    }
 }
 
-void SegmentStitching::publishSegmentLines(const std::vector<std::vector<Line> >& lines){
+void SegmentStitching::publishSegmentMarkers(const std::vector<std::vector<Line> >& lines){
     visualization_msgs::MarkerArray ar;
     for (size_t i = 0; i < lines.size(); i++) {
         visualization_msgs::Marker m;
@@ -112,17 +120,27 @@ void SegmentStitching::publishSegmentLines(const std::vector<std::vector<Line> >
         ar.markers.push_back(m);
     }
 
-    // ros::Rate loopRate(1);
-    // while (ros::ok()){
-    //     markerArray_pub.publish(ar);
-    //     loopRate.sleep();
-    // }
+    ros::Rate loopRate(1);
+    while (ros::ok()){
+        markerArray_pub.publish(ar);
+        loopRate.sleep();
+    }
+}
+
+void SegmentStitching::publishLineMarkers(const std::vector<Line>& lines){
+    visualization_msgs::MarkerArray ar;
+    char buff[25];
+    sprintf(buff, "lines");
+    visualization_msgs::Marker m;
+    m = makeLineMarkers(lines, std::string(buff));
+    ar.markers.push_back(m);
+    markerArray_pub.publish(ar);
 }
 
 void SegmentStitching::publishCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cl){
     // define the frame for the map
     // NEED TO PUBLISH THE MAP FRAME!
-    cl->header.frame_id = "camera_link";
+    cl->header.frame_id = "/camera_link";
     segcloud_pub.publish(cl);
 }
 
@@ -281,6 +299,14 @@ void SegmentStitching::segmentPointToMeasurements(const mapping_msgs::SegmentPoi
     pcl::PointXYZ odompt(0, odom.distanceTotal, 0);
     // only look at first 4 sensors, last 2 are front facing, assume either -90 or 90 rotation
     for (size_t i = 0; i < sensors.size() - 2; i++){
+        // if the distance is an error value (too close or too far away), do not
+        // consider it. The sensorUpperLimit includes values for which the
+        // sensor becomes inaccurate. TODO actually use the "too long" distances
+        // to define white space.
+        if (distances[i] > sensorUpperLimit || distances[i] < 0){
+            continue;
+        }
+        
         // naive way of getting point measurement - if sensor rotated -90,
         // subtract from x, otherwise add. The generated points will be rotated
         // later to match segment rotation if necessary
@@ -318,14 +344,12 @@ std::vector<Line> SegmentStitching::extractLinesFromMeasurements(pcl::PointCloud
     pcl::PointCloud<pcl::PointXYZ>::Ptr processing(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ>::Ptr trimmed(new pcl::PointCloud<pcl::PointXYZ>);
     *processing = *measurements; // copy stuff from the measurement cloud to be processed
-
-    // naive: extract two lines from each segment. TODO: extraction of lines
-    // based on proportion of points remaining in the cloud once the first line
-    // has been removed.
-    for (int i = 0; i < 2; i++) {
-        // ROS_INFO("Trimmed size: %d", (int)trimmed->size());
-        // ROS_INFO("Processing size: %d", (int)processing->size());
-
+    
+    // the proportion of points in the trimmed cloud compared to the original
+    float trimmedProportion = 1;
+    // continue extraction of lines until the number of points in the trimmed
+    // cloud vs the original drops below a certain threshold
+    for (int i = 0; trimmedProportion > minTrimProp; i++) {
         // Extract a line from the measurements, and put the inlier references into inliers.
         lines.push_back(extractLineFromMeasurements(processing, ransacThreshold, inliers));
         // ExtractIndices expects a different type than vector, so create that
@@ -342,7 +366,9 @@ std::vector<Line> SegmentStitching::extractLinesFromMeasurements(pcl::PointCloud
 
         // Update the points to be processed for the next loop
         *processing = *trimmed;
-    
+
+        trimmedProportion = processing->size()/(float)measurements->size();
+        ROS_INFO("Trimmed prop: %f", trimmedProportion);
         std::cout << lines[i] << std::endl;
     }
 
@@ -466,8 +492,6 @@ Line SegmentStitching::rotateLine(const Line& l, float angle){
 void SegmentStitching::rotateTranslateCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointXYZ translation, float rotation){
     pcl::PointCloud<pcl::PointXYZ>::iterator it = cloud->begin();
     for (; it != cloud->end(); it++) {
-        ROS_INFO_STREAM("Original point: " << *it);
-        
         pcl::PointXYZ& pt = *it;
         float rotX = pt.x, rotY = pt.y;
         PCLUtil::rotatePointAroundOriginXY(rotX, rotY, rotation);

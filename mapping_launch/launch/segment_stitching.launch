@@ -2,8 +2,14 @@
   <!-- This argument defines which segment file will be read into the node.-->
   <arg name="segfile"/>
   <param name="/segment_stitching/input_file" value="$(arg segfile)" />
-  <arg name="ransacthresh" default="0.05" />
+  <!-- The threshold for ransac to consider a point an inlier to the line model -->
+  <arg name="ransacthresh" default="0.02" />
   <param name="/segment_stitching/ransac_threshold" value="$(arg ransacthresh)" />
+  <!-- Ransac will stop extracting lines from the measurements for a given
+       segment if the proportion of the original cloud remaining after
+       extracting the last line drops below this value -->
+  <arg name="mintrim" default="0.1" />
+  <param name="/segment_stitching/min_trim_prop" value="$(arg mintrim)" />
   <rosparam file="$(find project_launch)/config/topic_names.yaml" command="load" />
   <rosparam file="$(find project_launch)/config/global_params.yaml" command="load" />
   <node name="segment_stitching" pkg="segment_stitching" type="segment_stitching" args="" output="screen" />
