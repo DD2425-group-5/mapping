@@ -116,6 +116,10 @@ private:
     
     Line rotateLine(const Line& lineToRotate, float angle);
     void rotateTranslateCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointXYZ translation, float rotation);
+    std::vector<Line> rotateTranslateLines(const std::vector<Line>& lines, pcl::PointXYZ translation, float rotation);
+    void rotateTranslateObjects(std::vector<mapping_msgs::Object>& objects, pcl::PointXYZ translation, float rotation);
+    void setTurnDirectionAndRotation(int turnDirection, int& rotation, int& xDirection, int& yDirection);
+    
     std::vector<std::vector<Line> > processSegments(const std::vector<std::vector<Line> >& linesInSegments, 
                                                     mapping_msgs::SegmentObjectVector& allSegmentObjects,
                                                     std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr >& clouds);
