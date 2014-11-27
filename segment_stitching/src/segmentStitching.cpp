@@ -61,6 +61,7 @@ void SegmentStitching::runNode(){
 
     std::vector<std::vector<Line> > segmentLines;
     mapping_msgs::SegmentObjectVector allSegmentObjects;
+    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr > measurementClouds;
     // Go through all the segments, extract measurements, and convert these to lines.
     for (size_t segment = 0; segment < mapSegments.size(); segment++) {
         ROS_INFO("Processing segment %d of %d", (int)(segment + 1), (int)(mapSegments.size()));
@@ -76,7 +77,7 @@ void SegmentStitching::runNode(){
         mapping_msgs::ObjectVector objects;
         
         segmentToMeasurements(mapSegments[segment], measurements, objects);
-        
+        measurementClouds.push_back(measurements);
         // Extract the lines from this segment using ransac. This operation
         // destroys the measurement pointcloud
         std::vector<Line> lines = extractLinesFromMeasurements(measurements, ransacThreshold);
@@ -84,9 +85,10 @@ void SegmentStitching::runNode(){
         allSegmentObjects.segmentObjects.push_back(objects);
 //        tmpPublish(measurements, lines);
     }
-    std::vector<std::vector<Line> > stitchedLines = processSegments(segmentLines, allSegmentObjects);
-    publishFinalMessages(stitchedLines, allSegmentObjects);
-//    publishSegmentLines(stitchedLines);
+
+    std::vector<std::vector<Line> > stitchedLines = processSegments(segmentLines, allSegmentObjects, measurementClouds);
+    //publishSegmentLines(stitchedLines);
+    publishFinalMessages(stitchedLines, allSegmentObjects, measurementClouds);
 }
 
 void SegmentStitching::tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, const std::vector<Line>& lines){
@@ -165,10 +167,13 @@ visualization_msgs::Marker SegmentStitching::makeLineMarkers(const std::vector<L
  * published in the end.
  */
 void SegmentStitching::publishFinalMessages(const std::vector<std::vector<Line> >& lines,
-                                            const mapping_msgs::SegmentObjectVector& objects){
+                                            const mapping_msgs::SegmentObjectVector& objects,
+                                            const std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr >& clouds){
     
     ROS_INFO("Publishing final stitched lines");
     mapping_msgs::SegmentLineVector slv;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr fullCloud(new pcl::PointCloud<pcl::PointXYZ>);
+    fullCloud->header.frame_id = "/camera_link";
     for (size_t i = 0; i < lines.size(); i++) {
         // lines for this segment
         mapping_msgs::LineVector sl;
@@ -180,12 +185,16 @@ void SegmentStitching::publishFinalMessages(const std::vector<std::vector<Line> 
             sl.lines.push_back(l);
         }
         slv.segments.push_back(sl);
+
+        // add the cloud for this segment to the overall cloud
+        fullCloud->insert(fullCloud->end(), clouds[i]->begin(), clouds[i]->end());
     }
 
     ros::Rate loopRate(1);
     while (ros::ok()){
         line_pub.publish(slv);
         object_pub.publish(objects);
+        segcloud_pub.publish(fullCloud);
         loopRate.sleep();
     }
 }
@@ -272,14 +281,6 @@ void SegmentStitching::segmentPointToMeasurements(const mapping_msgs::SegmentPoi
     pcl::PointXYZ odompt(0, odom.distanceTotal, 0);
     // only look at first 4 sensors, last 2 are front facing, assume either -90 or 90 rotation
     for (size_t i = 0; i < sensors.size() - 2; i++){
-        // Ignore any measurements which are too far or too close. 
-        // TODO - the distance measurements above the upper limit actually give
-        // information, but the points generated from this need to be handled
-        // differently.
-        if (distances[i] > sensorUpperLimit || distances[i] < 0){
-            
-        }
-        
         // naive way of getting point measurement - if sensor rotated -90,
         // subtract from x, otherwise add. The generated points will be rotated
         // later to match segment rotation if necessary
@@ -462,6 +463,20 @@ Line SegmentStitching::rotateLine(const Line& l, float angle){
     return newLine;
 }
 
+void SegmentStitching::rotateTranslateCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointXYZ translation, float rotation){
+    pcl::PointCloud<pcl::PointXYZ>::iterator it = cloud->begin();
+    for (; it != cloud->end(); it++) {
+        ROS_INFO_STREAM("Original point: " << *it);
+        
+        pcl::PointXYZ& pt = *it;
+        float rotX = pt.x, rotY = pt.y;
+        PCLUtil::rotatePointAroundOriginXY(rotX, rotY, rotation);
+        pt.x = rotX;
+        pt.y = rotY;
+        pt = pt + translation;
+    }
+}
+
 /**
  * Combine the lines extracted from segments into a single set of lines which
  * hopefully represent the walls in the maze. The first segment starts at 0,0
@@ -479,7 +494,8 @@ Line SegmentStitching::rotateLine(const Line& l, float angle){
  * rotations. The objects are modified in place.
  */
 std::vector<std::vector<Line> > SegmentStitching::processSegments(const std::vector<std::vector<Line> >& linesInSegments,
-                                                                  mapping_msgs::SegmentObjectVector& allSegmentObjects){
+                                                                  mapping_msgs::SegmentObjectVector& allSegmentObjects,
+                                                                  std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr >& clouds){
     ROS_INFO("==================== Stitching segments ====================");
     // Keep a list of the positions of the robot at the beginning and end of
     // each segment, relative to the map, as opposed to each segment.
@@ -605,6 +621,9 @@ std::vector<std::vector<Line> > SegmentStitching::processSegments(const std::vec
             found.location.x += segmentGlobalStart.x;
             found.location.y += segmentGlobalStart.y;
         }
+
+        // rotate and translate the cloud for this segment
+        rotateTranslateCloud(clouds[i], segmentGlobalStart, rotation);
             
         //Just add the difference and change the segmentEndPoint x and y
         float newX = xDir * segmentEnd.odometry.distanceTotal + segmentGlobalStart.x;

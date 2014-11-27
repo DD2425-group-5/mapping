@@ -115,11 +115,14 @@ private:
                                mapping_msgs::ObjectVector& objects);
     
     Line rotateLine(const Line& lineToRotate, float angle);
+    void rotateTranslateCloud(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud, pcl::PointXYZ translation, float rotation);
     std::vector<std::vector<Line> > processSegments(const std::vector<std::vector<Line> >& linesInSegments, 
-                                                    mapping_msgs::SegmentObjectVector& allSegmentObjects);
+                                                    mapping_msgs::SegmentObjectVector& allSegmentObjects,
+                                                    std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr >& clouds);
     void populateSensorPositions(ros::NodeHandle handle);
     void publishFinalMessages(const std::vector<std::vector<Line> >& lines,
-                              const mapping_msgs::SegmentObjectVector& objects);
+                              const mapping_msgs::SegmentObjectVector& objects,
+                              const std::vector<pcl::PointCloud<pcl::PointXYZ>::Ptr >& clouds);
     
     void tmpPublish(pcl::PointCloud<pcl::PointXYZ>::Ptr cl, const std::vector<Line>& lines);
     visualization_msgs::Marker makeLineMarkers(const std::vector<Line>& lines, std::string markerRef);
