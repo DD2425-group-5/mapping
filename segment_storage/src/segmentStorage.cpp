@@ -198,13 +198,11 @@ void SegmentStorage::turnCallback(const controller_msgs::Turning& msg){
 void SegmentStorage::endSegment(float turnDegrees){
     ROS_INFO("Ending segment");
     recordSegment = false;
-    if(turnDegrees == 90.0){
+    if(MathUtil::approxEqual(turnDegrees, 90.0, 0.0001)){
         currentSegment.turnDirection = currentSegment.LEFT_TURN;
-    }
-    else if(turnDegrees == -90.0){
+    } else if(MathUtil::approxEqual(turnDegrees, -90.0, 0.0001)){
         currentSegment.turnDirection = currentSegment.RIGHT_TURN;
-    }
-    else if(turnDegrees == 180.0){
+    } else if(MathUtil::approxEqual(turnDegrees, 180.0, 0.0001)){
         currentSegment.turnDirection = currentSegment.U_TURN;
     }
     segments.push_back(currentSegment);
