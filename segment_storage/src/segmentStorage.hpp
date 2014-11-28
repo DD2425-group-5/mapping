@@ -6,6 +6,7 @@
 #include <std_msgs/Bool.h>
 #include "rosutil/rosutil.hpp"
 #include "sysutil/sysutil.hpp"
+#include "mathutil/mathutil.hpp"
 #include "hardware_msgs/IRDists.h"
 #include "hardware_msgs/Odometry.h"
 #include "mapping_msgs/MapSegment.h"
