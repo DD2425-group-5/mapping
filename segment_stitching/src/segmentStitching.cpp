@@ -626,7 +626,7 @@ void SegmentStitching::setTurnDirectionAndRotation(int turnDirection, int& rotat
             yDir = 0;
         }
         
-        rotation += 90;
+        rotation -= 90;
     } else if (turnDirection == mapping_msgs::MapSegment::U_TURN){
         ROS_INFO("Segment is a u turn from the previous segment (rotated 180)");
         // cannot be 1 at the same time, so don't bother with an if
