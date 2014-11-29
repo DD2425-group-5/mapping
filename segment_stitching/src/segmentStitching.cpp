@@ -83,7 +83,7 @@ void SegmentStitching::runNode(){
         std::vector<Line> lines = extractLinesFromMeasurements(measurements, ransacThreshold);
         segmentLines.push_back(lines);
         allSegmentObjects.segmentObjects.push_back(objects);
-        //intermediatePublish(lines, measurements, 2);
+        intermediatePublish(lines, measurements, 2);
     }
 
     std::vector<std::vector<Line> > stitchedLines = processSegments(segmentLines, allSegmentObjects, measurementClouds);
@@ -309,7 +309,7 @@ void SegmentStitching::segmentPointToMeasurements(const mapping_msgs::SegmentPoi
         // naive way of getting point measurement - if sensor rotated -90,
         // subtract from x, otherwise add. The generated points will be rotated
         // later to match segment rotation if necessary
-        if (sensors[i].rotation == -90) { // might be dangerous, rotation is a float
+        if (MathUtil::approxEqual(sensors[i].rotation, 90, 0.0001)) { // might be dangerous, rotation is a float
             distances[i] = -distances[i];
         }
         pcl::PointXYZ p = sensors[i].asPCLPoint() + odompt + pcl::PointXYZ(distances[i], 0, 0);
@@ -523,6 +523,7 @@ std::vector<std::vector<Line> > SegmentStitching::processSegments(const std::vec
     // the map, where the map origin is the start position of the robot in the
     // first segment
     pcl::PointXYZ segmentGlobalStart(0,0,0);
+    segmentPointChain.push_back(segmentGlobalStart);
     // The robot can only move along the axes. In the reference frame of the
     // robot, the positive y direction is forwards, positive x direction is to
     // the left of the robot. At the beginning, the robot moves in the positive
@@ -581,10 +582,20 @@ std::vector<std::vector<Line> > SegmentStitching::processSegments(const std::vec
         segmentGlobalStart = segmentEndPoint;
     }
 
+//    std::vector<Line> links;
     for (size_t i = 0; i < segmentPointChain.size(); i++) {
         ROS_INFO_STREAM("Segment point " << i << ": " << segmentPointChain[i]);
+        // if (i > 0){
+        //     links.push_back(Line(segmentPointChain[i-1], segmentPointChain[i]));
+        // }
     }
 
+    // while(true){
+    //     publishLineMarkers(links);
+    //     ros::Duration(0.5).sleep();
+    // }
+    
+    
     return stitchedLines;
 }
 
