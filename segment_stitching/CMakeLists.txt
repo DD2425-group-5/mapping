@@ -12,7 +12,8 @@ find_package(catkin REQUIRED COMPONENTS
                     pcl_ros
                     pcl_conversions
                     geometry_msgs
-                    visualization_msgs)
+                    visualization_msgs
+                    vision_msgs)
 
 find_package(PCL REQUIRED)
 
@@ -20,7 +21,7 @@ catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES blobdetection
   CATKIN_DEPENDS roscpp rosbag mapping_msgs pclutil pcl_ros pcl_conversions mathutil
-  geometry_msgs visualization_msgs
+  geometry_msgs visualization_msgs vision_msgs
 #  DEPENDS visionutil
 )
 

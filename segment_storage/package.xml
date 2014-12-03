@@ -23,10 +23,10 @@
   <run_depend>sysutil</run_depend>
   <build_depend>mathutil</build_depend>
   <run_depend>mathutil</run_depend>
-  <build_depend>vision_master</build_depend>
-  <run_depend>vision_master</run_depend>
   <build_depend>geometry_msgs</build_depend>
   <run_depend>geometry_msgs</run_depend>
+  <build_depend>vision_msgs</build_depend>
+  <run_depend>vision_msgs</run_depend>
 
   
   <!-- The export tag contains other, unspecified, tags -->

@@ -1,4 +1,4 @@
 hardware_msgs/IRDists distances
 hardware_msgs/Odometry odometry
-vision_master/object_found object
+vision_msgs/object_found object
 bool gotObject

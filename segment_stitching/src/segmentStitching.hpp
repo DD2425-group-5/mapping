@@ -26,7 +26,7 @@
 #include "mapping_msgs/ObjectVector.h"
 #include "mapping_msgs/SegmentObjectVector.h"
 #include "mapping_msgs/StitchingResults.h"
-#include "vision_master/object_found.h"
+#include "vision_msgs/object_found.h"
 
 
 class IRSensor {

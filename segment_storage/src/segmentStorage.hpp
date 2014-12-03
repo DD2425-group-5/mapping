@@ -12,7 +12,7 @@
 #include "mapping_msgs/MapSegment.h"
 #include "mapping_msgs/SegmentPoint.h"
 #include "controller_msgs/Turning.h"
-#include "vision_master/object_found.h"
+#include "vision_msgs/object_found.h"
 
 class SegmentStorage {
 public:
@@ -45,7 +45,7 @@ private:
     
     hardware_msgs::Odometry latestOdom;
     hardware_msgs::IRDists latestIRDist;
-    vision_master::object_found latestObject;
+    vision_msgs::object_found latestObject;
     
     rosbag::Bag segmentBag;
     std::string segmentTopic;
@@ -54,14 +54,14 @@ private:
     void irCallback(const hardware_msgs::IRDists::ConstPtr& msg);
     void odomCallback(const hardware_msgs::Odometry::ConstPtr& msg);
     void turnCallback(const controller_msgs::Turning& msg);
-    void detectCallback(const vision_master::object_found::ConstPtr& msg);
+    void detectCallback(const vision_msgs::object_found::ConstPtr& msg);
         
     // main
     void runNode();
     
     // other functions
     void addPoint(hardware_msgs::Odometry odom, hardware_msgs::IRDists ir,
-                  vision_master::object_found obj, bool gotObject);
+                  vision_msgs::object_found obj, bool gotObject);
     void saveSegment(mapping_msgs::MapSegment seg);
     void endSegment(float turnDegrees);
     mapping_msgs::SegmentPoint generateSimulatedPoint();

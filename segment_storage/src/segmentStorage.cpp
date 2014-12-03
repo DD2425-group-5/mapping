@@ -94,7 +94,7 @@ void SegmentStorage::runNode(){
                 // want to keep it once it is added.
                 hardware_msgs::Odometry clearOdom;
                 hardware_msgs::IRDists clearIR;
-                vision_master::object_found clearObject;
+                vision_msgs::object_found clearObject;
                 latestOdom = clearOdom;
                 latestIRDist = clearIR;
                 latestObject = clearObject;
@@ -107,7 +107,7 @@ void SegmentStorage::runNode(){
 
 void SegmentStorage::addPoint(hardware_msgs::Odometry odom,
                               hardware_msgs::IRDists ir,
-                              vision_master::object_found obj,
+                              vision_msgs::object_found obj,
                               bool gotObject){
     mapping_msgs::SegmentPoint p;
     p.distances = ir;
@@ -171,7 +171,7 @@ void SegmentStorage::odomCallback(const hardware_msgs::Odometry::ConstPtr& msg){
     latestOdom = *msg;
 }
 
-void SegmentStorage::detectCallback(const vision_master::object_found::ConstPtr& msg){
+void SegmentStorage::detectCallback(const vision_msgs::object_found::ConstPtr& msg){
     ROS_INFO("******************** OBJECT RECEIVED ********************");
     latestObject = *msg;
     gotObject = true;
