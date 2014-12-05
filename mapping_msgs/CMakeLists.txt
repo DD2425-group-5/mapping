@@ -15,6 +15,8 @@ add_message_files(
   ObjectVector.msg
   SegmentObjectVector.msg
   StitchingResults.msg
+  Node.msg
+  NodeList.msg
 )
 
 generate_messages(
