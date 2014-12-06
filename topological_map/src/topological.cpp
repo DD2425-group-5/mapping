@@ -41,7 +41,7 @@ void Topological::runNode(){
 }
 
 void Topological::odomCallback(const hardware_msgs::Odometry& msg){
-    latestOdom = *msg;
+    latestOdom = msg;
 }
 
 void Topological::irCallback(const hardware_msgs::IRDists& msg){
@@ -55,6 +55,6 @@ void Topological::turnCallback(const controller_msgs::Turning& msg){
 }
 
 void Topological::detectCallback(const vision_msgs::object_found& msg){
-    latestObject = *msg;
+    latestObject = msg;
     gotObject = true;
 }
