@@ -5,13 +5,15 @@ find_package(catkin REQUIRED COMPONENTS
                     roscpp
                     hardware_msgs
                     mapping_msgs
+                    geometry_msgs
                     rosutil
-                    vision_msgs)
+                    vision_msgs
+                    visualization_msgs)
 
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES blobdetection
-  CATKIN_DEPENDS roscpp mapping_msgs geometry_msgs rosutil vision_msgs hardware_msgs
+  CATKIN_DEPENDS roscpp mapping_msgs geometry_msgs rosutil vision_msgs hardware_msgs visualization_msgs
 #  DEPENDS visionutil
 )
 
