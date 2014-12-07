@@ -28,6 +28,7 @@ private:
     ros::Subscriber sub_controlInfo;
     ros::Subscriber sub_objDetect;
     ros::Publisher pub_marker;
+    ros::Publisher pub_map;
     
     // flags for indicating when to save a node
     bool gotObject;

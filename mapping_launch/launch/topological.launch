@@ -1,5 +1,13 @@
 <launch>
-  <!-- Define the width and height of each cell in the occupancy grid, in m -->
-  <rosparam file="$(find project_launch)/config/topic_names.yaml" command="load" />
-  <node name="topological_map" pkg="topological_map" type="topological_map" output="screen" />
+  <!-- if the gather is set to true, then the node will listen to topics and
+       construct the map. If set to false, the node will publish the map
+       contained in the specified rosbag file -->
+  <arg name="gather" default="true"/>
+  <param name="/topological/gather" value="$(arg gather)"/>
+  <group unless="$(arg gather)">
+    <arg name="mapfile"/>
+    <param name="/topological/mapbag" value="$(arg mapfile)"/>
+  </group>
+  <rosparam file="$(find project_launch)/config/topic_names.yaml" command="load"/>
+  <node name="topological_map" pkg="topological_map" type="topological_map" output="screen"/>
 </launch>

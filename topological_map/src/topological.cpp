@@ -9,23 +9,7 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
     ros::init(argc, argv, "topological");
     ros::NodeHandle handle;
     
-    std::string odom_topic;
-    ROSUtil::getParam(handle, "/topic_list/hardware_topics/odometry/published/odometry_topic",
-                      odom_topic);
-    sub_odometry = handle.subscribe(odom_topic, 1, &TopologicalMap::odomCallback, this);
 
-    std::string ir_dist_topic;
-    ROSUtil::getParam(handle, "/topic_list/hardware_topics/ir_sensors/published/ir_distance_topic",
-                      ir_dist_topic);
-    sub_irdist = handle.subscribe(ir_dist_topic, 1, &TopologicalMap::irCallback, this);
-
-    
-    std::string info_sub_topic;
-    ROSUtil::getParam(handle, "/topic_list/controller_topics/wallfollower/published/turning_topic",
-                      info_sub_topic);
-    sub_controlInfo = handle.subscribe(info_sub_topic, 1000, &TopologicalMap::turnCallback, this);
-
-    sub_objDetect = handle.subscribe("/vision/detection", 1000, &TopologicalMap::detectCallback, this);
 
     std::string marker_topic;
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/marker_topic",
@@ -35,8 +19,45 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
     // The bag will use the bagtopic string to define the topic which
     // the map will be published to
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/bag_topic", bagTopic);
-    // the resulting bag will be saved to this directory
-    ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/bag_dir", bagDir);
+    
+    // whether the node is supposed to gather data and construct the map, or
+    // just publish the map
+    bool gather;
+    ROSUtil::getParam(handle, "/topological/gather", gather);
+    if (!gather) {
+        // for publishing, just need to describe the file to read from, and a
+        // topic to publish the map to
+        std::string bagFileName;
+        ROSUtil::getParam(handle, "/topological/mapbag", bagFileName);
+        
+        std::string map_topic;
+        ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/map_topic",
+                          map_topic);
+        pub_map = handle.advertise<mapping_msgs::NodeList>(map_topic, 1);
+    } else { // for gathering, need to define topics to listen to
+        std::string odom_topic;
+        ROSUtil::getParam(handle, "/topic_list/hardware_topics/odometry/published/odometry_topic",
+                          odom_topic);
+        sub_odometry = handle.subscribe(odom_topic, 1, &TopologicalMap::odomCallback, this);
+
+        std::string ir_dist_topic;
+        ROSUtil::getParam(handle, "/topic_list/hardware_topics/ir_sensors/published/ir_distance_topic",
+                          ir_dist_topic);
+        sub_irdist = handle.subscribe(ir_dist_topic, 1, &TopologicalMap::irCallback, this);
+
+    
+        std::string info_sub_topic;
+        ROSUtil::getParam(handle, "/topic_list/controller_topics/wallfollower/published/turning_topic",
+                          info_sub_topic);
+        sub_controlInfo = handle.subscribe(info_sub_topic, 1000, &TopologicalMap::turnCallback, this);
+
+        sub_objDetect = handle.subscribe("/vision/detection", 1000, &TopologicalMap::detectCallback, this);
+
+        // the resulting bag will be saved to this directory
+        ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/bag_dir", bagDir);
+
+    }
+    
 
     // set bools to false
     gotObject = false;
