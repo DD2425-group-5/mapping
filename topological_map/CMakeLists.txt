@@ -7,18 +7,20 @@ find_package(catkin REQUIRED COMPONENTS
                     mapping_msgs
                     geometry_msgs
                     rosutil
+                    sysutil
                     vision_msgs
-                    visualization_msgs)
+                    visualization_msgs
+                    rosbag)
 
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES blobdetection
-  CATKIN_DEPENDS roscpp mapping_msgs geometry_msgs rosutil vision_msgs hardware_msgs visualization_msgs
+  CATKIN_DEPENDS roscpp sysutil mapping_msgs geometry_msgs rosutil vision_msgs hardware_msgs visualization_msgs rosbag
 #  DEPENDS visionutil
 )
 
 include_directories(include ${catkin_INCLUDE_DIRS})
 
 add_executable(topological_map src/topological.cpp)
-target_link_libraries(topological_map ${catkin_LIBRARIES} rosutil)
+target_link_libraries(topological_map ${catkin_LIBRARIES} rosutil sysutil)
 add_dependencies(topological_map ${catkin_EXPORTED_TARGETS})

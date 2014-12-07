@@ -1,0 +1,5 @@
+<launch>
+  <!-- Define the width and height of each cell in the occupancy grid, in m -->
+  <rosparam file="$(find project_launch)/config/topic_names.yaml" command="load" />
+  <node name="topological_map" pkg="topological_map" type="topological_map" output="screen" />
+</launch>
