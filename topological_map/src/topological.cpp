@@ -119,11 +119,16 @@ void TopologicalMap::addNode(float x, float y, bool object, std::string label){
         // go backwards through the list until the node is not an object
         for (; nodes.list[nonObjectInd].object; nonObjectInd--);
         
+        // link the new node to the existing one
         newNode.links.push_back(nodes.list[nonObjectInd].ref);
+        // link the last node to the new one
+        nodes.list[nonObjectInd].links.push_back(newNode.ref);
     } else {
         // if the last node was not an object, link the node to the previous
         // node
         newNode.links.push_back(nodes.list.back().ref);
+        // link the last node to the new one
+        nodes.list.back().links.push_back(newNode.ref);
     }
 
     newNode.label = label;
