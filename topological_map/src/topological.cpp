@@ -20,21 +20,13 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
     // the map will be published to
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/bag_topic", bagTopic);
     
-    // whether the node is supposed to gather data and construct the map, or
-    // just publish the map
-    bool gather;
-    ROSUtil::getParam(handle, "/topological/gather", gather);
-    if (!gather) {
-        // for publishing, just need to describe the file to read from, and a
-        // topic to publish the map to
-        std::string bagFileName;
-        ROSUtil::getParam(handle, "/topological/mapbag", bagFileName);
-        
-        std::string map_topic;
-        ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/map_topic",
-                          map_topic);
-        pub_map = handle.advertise<mapping_msgs::NodeList>(map_topic, 1);
-    } else { // for gathering, need to define topics to listen to
+    // if the bag variable is set, then we read from the bag and publish the map
+    // contained, otherwise construct the map based on subscribed topics
+    std::string bagFileName;
+    ROSUtil::getParam(handle, "/topological/mapbag", bagFileName);
+
+    if (!bagFileName.compare("none")) { // 0 return means the strings are equal
+        ROS_INFO("TopMap: No bagfile given - constructing map");
         std::string odom_topic;
         ROSUtil::getParam(handle, "/topic_list/hardware_topics/odometry/published/odometry_topic",
                           odom_topic);
@@ -56,14 +48,38 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
         // the resulting bag will be saved to this directory
         ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/bag_dir", bagDir);
 
+        // set bools to false
+        gotObject = false;
+        turning = false;
+    
+        runNode(true);
+    } else {
+        ROS_INFO("TopMap: Bag file received: %s  - publishing contained map", bagFileName.c_str());
+        
+        std::string map_topic;
+        ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/map_topic",
+                          map_topic);
+        pub_map = handle.advertise<mapping_msgs::NodeList>(map_topic, 1);
+
+        rosbag::Bag mapBag;
+        mapBag.open(bagFileName, rosbag::bagmode::Read);
+    
+        // define the topics to read
+        std::vector<std::string> topics;
+        topics.push_back(bagTopic);
+    
+        // define a view onto the bag file - only interested in one topic
+        rosbag::View view(mapBag, rosbag::TopicQuery(topics));
+
+        ROS_INFO("Reading map from %s", bagFileName.c_str());
+        
+        // Extract the list of nodes which make up the map
+        nodes = *((*(view.begin())).instantiate<mapping_msgs::NodeList>());
+
+        runNode(false);
     }
     
 
-    // set bools to false
-    gotObject = false;
-    turning = false;
-    
-    runNode();
 }
 
 TopologicalMap::~TopologicalMap(){
@@ -71,43 +87,60 @@ TopologicalMap::~TopologicalMap(){
     saveMap();
 }
 
-void TopologicalMap::runNode(){
-    // add a node at the start position
-    mapping_msgs::Node start;
-    start.x = 0.0f;
-    start.y = 0.0f;
-    start.ref = curNodeRef++;
-    start.label = "start";
-    nodes.list.push_back(start);
+/**
+ * parameter indicates whether the map is being constructed or if we just want
+ * to publish the map contained in a bagfile
+ */
+void TopologicalMap::runNode(bool construct){
 
-    ros::Rate loopRate(10);
-    while (ros::ok()){
-        // An object was detected
-        if (gotObject){
-            ROS_INFO("TopMap: Got object");
-            // add object to map at objectPos + odomPos, and set the node label
-            // to the name of the object detected
-            addNode(latestOdom.totalX + latestObject.offset_x,
-                    latestOdom.totalY + latestObject.offset_y, true, latestObject.id);
+    if (construct) {
+        // add a node at the start position
+        mapping_msgs::Node start;
+        start.x = 0.0f;
+        start.y = 0.0f;
+        start.ref = curNodeRef++;
+        start.label = "start";
+        nodes.list.push_back(start);
+
+        ros::Rate loopRate(10);
+        while (ros::ok()){
+            // An object was detected
+            if (gotObject){
+                ROS_INFO("TopMap: Got object");
+                // add object to map at objectPos + odomPos, and set the node label
+                // to the name of the object detected
+                addNode(latestOdom.totalX + latestObject.offset_x,
+                        latestOdom.totalY + latestObject.offset_y, true, latestObject.id);
             
-            // reset the flag
-            gotObject = false;
-            // update the markers being published
-            currentMarkers = createMarkers();
+                // reset the flag
+                gotObject = false;
+                // update the markers being published
+                currentMarkers = createMarkers();
+            }
+            // robot is turning
+            if (turning){
+                ROS_INFO("TopMap: Got turn message");
+                // create a node at the current odometry position
+                addNode(latestOdom.totalX, latestOdom.totalY, false);
+                turning = false; // only create a single node when the message is received
+                // update the markers being published
+                currentMarkers = createMarkers();
+            }
+            ros::spinOnce();
+            pub_marker.publish(currentMarkers);
+            loopRate.sleep();
         }
-        // robot is turning
-        if (turning){
-            ROS_INFO("TopMap: Got turn message");
-            // create a node at the current odometry position
-            addNode(latestOdom.totalX, latestOdom.totalY, false);
-            turning = false; // only create a single node when the message is received
-            // update the markers being published
-            currentMarkers = createMarkers();
+    } else {
+        visualization_msgs::MarkerArray markers = createMarkers();
+        
+        ros::Rate loopRate(1);
+        while(ros::ok()){
+            pub_map.publish(nodes);
+            pub_marker.publish(markers);
+            loopRate.sleep();
         }
-        ros::spinOnce();
-        pub_marker.publish(currentMarkers);
-        loopRate.sleep();
     }
+    
 }
 
 void TopologicalMap::saveMap(){

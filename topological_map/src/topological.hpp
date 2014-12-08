@@ -1,5 +1,7 @@
 #include <ros/ros.h>
 #include <rosbag/bag.h>
+#include <rosbag/query.h>
+#include <rosbag/view.h>
 #include "rosutil/rosutil.hpp"
 #include "sysutil/sysutil.hpp"
 #include "hardware_msgs/Odometry.h"
@@ -16,7 +18,6 @@ class TopologicalMap {
 public:
     TopologicalMap(int argc, char *argv[]);
     ~TopologicalMap();
-    void runNode();
 private:
     // store the latest messages received
     hardware_msgs::Odometry latestOdom;
@@ -58,4 +59,5 @@ private:
     visualization_msgs::MarkerArray createMarkers();
     visualization_msgs::Marker createTextMarker(geometry_msgs::Point loc, std::string label);
     void saveMap();
+    void runNode(bool construct);
 };
