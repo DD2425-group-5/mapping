@@ -14,7 +14,8 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
     std::string marker_topic;
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/marker_topic",
                       marker_topic);
-    pub_marker = handle.advertise<visualization_msgs::MarkerArray>(marker_topic, 1);
+    // latched publisher for markers
+    pub_marker = handle.advertise<visualization_msgs::MarkerArray>(marker_topic, 1, true);
 
     // The bag will use the bagtopic string to define the topic which
     // the map will be published to
@@ -24,8 +25,9 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
     // contained, otherwise construct the map based on subscribed topics
     std::string bagFileName;
     ROSUtil::getParam(handle, "/topological/mapbag", bagFileName);
-
-    if (!bagFileName.compare("none")) { // 0 return means the strings are equal
+    
+    construct = !bagFileName.compare("none");  // 0 return means the strings are equal
+    if (construct) {
         ROS_INFO("TopMap: No bagfile given - constructing map");
         std::string odom_topic;
         ROSUtil::getParam(handle, "/topic_list/hardware_topics/odometry/published/odometry_topic",
@@ -52,14 +54,15 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
         gotObject = false;
         turning = false;
     
-        runNode(true);
+        runNode();
     } else {
         ROS_INFO("TopMap: Bag file received: %s  - publishing contained map", bagFileName.c_str());
         
         std::string map_topic;
         ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/map_topic",
                           map_topic);
-        pub_map = handle.advertise<mapping_msgs::NodeList>(map_topic, 1);
+        // latched publisher for the nodelist
+        pub_map = handle.advertise<mapping_msgs::NodeList>(map_topic, 1, true);
 
         rosbag::Bag mapBag;
         mapBag.open(bagFileName, rosbag::bagmode::Read);
@@ -76,7 +79,7 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
         // Extract the list of nodes which make up the map
         nodes = *((*(view.begin())).instantiate<mapping_msgs::NodeList>());
 
-        runNode(false);
+        runNode();
     }
     
 
@@ -91,7 +94,7 @@ TopologicalMap::~TopologicalMap(){
  * parameter indicates whether the map is being constructed or if we just want
  * to publish the map contained in a bagfile
  */
-void TopologicalMap::runNode(bool construct){
+void TopologicalMap::runNode(){
 
     if (construct) {
         // add a node at the start position
@@ -132,19 +135,15 @@ void TopologicalMap::runNode(bool construct){
         }
     } else {
         visualization_msgs::MarkerArray markers = createMarkers();
-        
-        ros::Rate loopRate(1);
-        while(ros::ok()){
-            pub_map.publish(nodes);
-            pub_marker.publish(markers);
-            loopRate.sleep();
-        }
+        pub_map.publish(nodes);
+        pub_marker.publish(markers);
+        ros::spin();
     }
     
 }
 
 void TopologicalMap::saveMap(){
-    rosbag::Bag topBag;    
+    rosbag::Bag topBag;
     std::string filePath = std::string(SysUtil::fullDirPath(bagDir) +
                                        "topmap_" +
                                        SysUtil::getDateTimeString() + ".bag");

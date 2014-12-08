@@ -34,6 +34,8 @@ private:
     // flags for indicating when to save a node
     bool gotObject;
     bool turning;
+    // constructing map or just publishing it?
+    bool construct;
     
     // path to the location where the bag file will be saved when the node is destroyed
     std::string bagDir;
@@ -59,5 +61,5 @@ private:
     visualization_msgs::MarkerArray createMarkers();
     visualization_msgs::Marker createTextMarker(geometry_msgs::Point loc, std::string label);
     void saveMap();
-    void runNode(bool construct);
+    void runNode();
 };
