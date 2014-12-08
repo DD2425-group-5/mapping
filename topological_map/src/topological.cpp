@@ -50,10 +50,10 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
         // the resulting bag will be saved to this directory
         ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/bag_dir", bagDir);
 
-        rosbag::Bag topBag;
         std::string filePath = std::string(SysUtil::fullDirPath(bagDir) +
                                            "topmap_" +
                                            SysUtil::getDateTimeString() + ".bag");
+        
 
         // open the bag to allow intermediate maps to be saved
         topBag.open(filePath, rosbag::bagmode::Write);
@@ -85,7 +85,7 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
         ROS_INFO("Reading map from %s", bagFileName.c_str());
         
         // Extract the list of nodes which make up the map
-        nodes = *((*(view.end())).instantiate<mapping_msgs::NodeList>());
+        nodes = *((*(view.begin())).instantiate<mapping_msgs::NodeList>());
 
         runNode();
     }
@@ -119,6 +119,9 @@ void TopologicalMap::runNode(){
             // An object was detected
             if (gotObject){
                 ROS_INFO("TopMap: Got object");
+                // add node at the odometry position when the object was detected
+                addNode(latestOdom.totalX, latestOdom.totalY, false);
+
                 // first, rotate the object around the origin. Since the
                 // coordinates are an offset, we do not need to subtract
                 // anything from the point.
@@ -128,9 +131,7 @@ void TopologicalMap::runNode(){
                 // to the name of the object detected
                 addNode(latestOdom.totalX + rotated.first,
                         latestOdom.totalY + rotated.second, true, latestObject.id);
-            
-                // add node at the odometry position when the object was detected
-                addNode(latestOdom.totalX, latestOdom.totalY, false);
+
                 // reset the flag
                 gotObject = false;
                 // update the markers being published
