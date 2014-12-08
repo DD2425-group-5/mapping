@@ -83,9 +83,13 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
         rosbag::View view(mapBag, rosbag::TopicQuery(topics));
 
         ROS_INFO("Reading map from %s", bagFileName.c_str());
-        
-        // Extract the list of nodes which make up the map
-        nodes = *((*(view.begin())).instantiate<mapping_msgs::NodeList>());
+        for (rosbag::View::iterator it = view.begin(); it != view.end(); it++){
+            // extract the messageInstance that the iterator points to
+            rosbag::MessageInstance mi = *it;
+            // Extract the segment from the bag
+            nodes = *(mi.instantiate<mapping_msgs::NodeList>());
+            // Put it into the vector of segments
+        }
 
         runNode();
     }
