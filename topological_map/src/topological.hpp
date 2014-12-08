@@ -4,6 +4,7 @@
 #include <rosbag/view.h>
 #include "rosutil/rosutil.hpp"
 #include "sysutil/sysutil.hpp"
+#include "mathutil/mathutil.hpp"
 #include "hardware_msgs/Odometry.h"
 #include "hardware_msgs/IRDists.h"
 #include "controller_msgs/Turning.h"

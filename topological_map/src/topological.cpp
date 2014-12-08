@@ -110,11 +110,18 @@ void TopologicalMap::runNode(){
             // An object was detected
             if (gotObject){
                 ROS_INFO("TopMap: Got object");
+                // first, rotate the object around the origin. Since the
+                // coordinates are an offset, we do not need to subtract
+                // anything from the point.
+                std::pair<float, float> rotated = MathUtil::rotateAroundOrigin(latestObject.offset_x, latestObject.offset_y, latestOdom.latestHeading);
+
                 // add object to map at objectPos + odomPos, and set the node label
                 // to the name of the object detected
-                addNode(latestOdom.totalX + latestObject.offset_x,
-                        latestOdom.totalY + latestObject.offset_y, true, latestObject.id);
+                addNode(latestOdom.totalX + rotated.first,
+                        latestOdom.totalY + rotated.second, true, latestObject.id);
             
+                // add node at the odometry position when the object was detected
+                addNode(latestOdom.totalX, latestOdom.totalY, false);
                 // reset the flag
                 gotObject = false;
                 // update the markers being published
