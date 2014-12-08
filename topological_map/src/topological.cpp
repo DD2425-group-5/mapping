@@ -50,6 +50,14 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
         // the resulting bag will be saved to this directory
         ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/bag_dir", bagDir);
 
+        rosbag::Bag topBag;
+        std::string filePath = std::string(SysUtil::fullDirPath(bagDir) +
+                                           "topmap_" +
+                                           SysUtil::getDateTimeString() + ".bag");
+
+        // open the bag to allow intermediate maps to be saved
+        topBag.open(filePath, rosbag::bagmode::Write);
+
         // set bools to false
         gotObject = false;
         turning = false;
@@ -77,7 +85,7 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
         ROS_INFO("Reading map from %s", bagFileName.c_str());
         
         // Extract the list of nodes which make up the map
-        nodes = *((*(view.begin())).instantiate<mapping_msgs::NodeList>());
+        nodes = *((*(view.end())).instantiate<mapping_msgs::NodeList>());
 
         runNode();
     }
@@ -88,6 +96,7 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
 TopologicalMap::~TopologicalMap(){
     ROS_INFO("Topological map destructor");
     saveMap();
+    topBag.close();
 }
 
 /**
@@ -126,6 +135,7 @@ void TopologicalMap::runNode(){
                 gotObject = false;
                 // update the markers being published
                 currentMarkers = createMarkers();
+                saveMap();
             }
             // robot is turning
             if (turning){
@@ -135,6 +145,7 @@ void TopologicalMap::runNode(){
                 turning = false; // only create a single node when the message is received
                 // update the markers being published
                 currentMarkers = createMarkers();
+                saveMap();
             }
             ros::spinOnce();
             pub_marker.publish(currentMarkers);
@@ -150,14 +161,7 @@ void TopologicalMap::runNode(){
 }
 
 void TopologicalMap::saveMap(){
-    rosbag::Bag topBag;
-    std::string filePath = std::string(SysUtil::fullDirPath(bagDir) +
-                                       "topmap_" +
-                                       SysUtil::getDateTimeString() + ".bag");
-    
-    topBag.open(filePath, rosbag::bagmode::Write);
     topBag.write(bagTopic, ros::Time::now(), nodes);
-    topBag.close();
 }
 
 /**

@@ -38,6 +38,7 @@ private:
     // constructing map or just publishing it?
     bool construct;
     
+    rosbag::Bag topBag;
     // path to the location where the bag file will be saved when the node is destroyed
     std::string bagDir;
     // topic to publish to in the rosbag
