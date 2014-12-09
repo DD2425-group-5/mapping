@@ -31,6 +31,9 @@ private:
     ros::Subscriber sub_objDetect;
     ros::Publisher pub_marker;
     ros::Publisher pub_map;
+
+    // below this threshold, nodes can be merged
+    float MERGE_DIST_THRESHOLD;
     
     // flags for indicating when to save a node
     bool gotObject;
@@ -47,7 +50,12 @@ private:
     // keep track of the number of nodes created, use this to define the node
     // reference, which allows for a non-recursive message definition to be
     // used.
-    int curNodeRef;
+    int nextNodeRef;
+
+    // this should really be somewhere else - use this to keep track of the
+    // previous node. Need to do this to ensure that nodes are added in the
+    // correct place when we go over locations multiple times.
+    int previousNodeRef;
     
     mapping_msgs::NodeList nodes;
     // markerarray containing all the markers that have 
@@ -56,8 +64,11 @@ private:
 
     void saveMap();
     void runNode();
-    void addNode(float x, float y, bool object, std::string label="");
+    bool addNode(mapping_msgs::Node& n);
+    void addObject(const hardware_msgs::Odometry& odom,
+                   const vision_msgs::object_found& obj);
     float nodeDistance(mapping_msgs::Node n1, mapping_msgs::Node n2);
+    void addLink(mapping_msgs::Node& n1, mapping_msgs::Node& n2);
     
     void odomCallback(const hardware_msgs::Odometry& msg);
     void irCallback(const hardware_msgs::IRDists& msg);
@@ -66,5 +77,5 @@ private:
 
 
     visualization_msgs::MarkerArray createMarkers();
-    visualization_msgs::Marker createTextMarker(geometry_msgs::Point loc, std::string label);
+    visualization_msgs::Marker createTextMarker(const geometry_msgs::Point& loc, const std::string& label);
 };

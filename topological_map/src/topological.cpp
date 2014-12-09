@@ -40,6 +40,9 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
     // latched publisher for the nodelist
     pub_map = handle.advertise<mapping_msgs::NodeList>(map_topic, 1, true);
 
+
+    ROSUtil::getParam(handle, "/topological_map/merge_dist_threshold", MERGE_DIST_THRESHOLD);
+
     // The bag will use the bagtopic string to define the topic which
     // the map will be published to within the bag
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/bag_topic", bagTopic);
@@ -61,6 +64,7 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
                                        SysUtil::getDateTimeString() + ".bag");
     
     topBag.open(filePath, rosbag::bagmode::Write);
+
     if (bagFileName.compare("none") != 0){
         ROS_INFO("TopMap: Bag file received: %s  - extracting contained map", bagFileName.c_str());
         
@@ -81,6 +85,10 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
             rosbag::MessageInstance mi = *it;
             nodes = *(mi.instantiate<mapping_msgs::NodeList>());
         }
+        
+        // need to start the references so that the references that were already
+        // used in the generation of the map are not duplicated
+        nextNodeRef = nodes.list.back().ref + 1;
 
         // publish the nodes and markers
         currentMarkers = createMarkers();
@@ -89,6 +97,8 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
     } else {
         ROS_INFO("TopMap: No bagfile given - constructing map");
     }
+
+    previousNodeRef = 0; // the robot always starts at the first node added to the list
 
     // set bools to false
     gotObject = false;
@@ -111,7 +121,7 @@ void TopologicalMap::runNode(){
     mapping_msgs::Node start;
     start.x = 0.0f;
     start.y = 0.0f;
-    start.ref = curNodeRef++;
+    start.ref = nextNodeRef++;
     start.label = "start";
     nodes.list.push_back(start);
 
@@ -121,18 +131,7 @@ void TopologicalMap::runNode(){
         // An object was detected
         if (gotObject){
             ROS_INFO("TopMap: Got object");
-            // add node at the odometry position when the object was detected
-            addNode(latestOdom.totalX, latestOdom.totalY, false);
-
-            // first, rotate the object around the origin. Since the
-            // coordinates are an offset, we do not need to subtract
-            // anything from the point.
-            std::pair<float, float> rotated = MathUtil::rotateAroundOrigin(latestObject.offset_x, latestObject.offset_y, latestOdom.latestHeading);
-
-            // add object to map at objectPos + odomPos, and set the node label
-            // to the name of the object detected
-            addNode(latestOdom.totalX + rotated.first,
-                    latestOdom.totalY + rotated.second, true, latestObject.id);
+            addObject(latestOdom, latestObject);
 
             // reset the flag
             gotObject = false;
@@ -142,7 +141,13 @@ void TopologicalMap::runNode(){
         if (turning){
             ROS_INFO("TopMap: Got turn message");
             // create a node at the current odometry position
-            addNode(latestOdom.totalX, latestOdom.totalY, false);
+            mapping_msgs::Node odom;
+            odom.x = latestOdom.totalX;
+            odom.y = latestOdom.totalY;
+            odom.object = false;
+
+            addNode(odom);
+
             turning = false; // only create a single node when the message is received
             // update the markers being published
             added = true;
@@ -167,41 +172,139 @@ void TopologicalMap::saveMap(){
     topBag.write(bagTopic, ros::Time::now(), nodes);
 }
 
+void TopologicalMap::addObject(const hardware_msgs::Odometry& odom,
+                               const vision_msgs::object_found& obj){
+
+    // node at the odometry position when the object was detected
+    mapping_msgs::Node odomPos;
+    odomPos.x = odom.totalX;
+    odomPos.y = odom.totalY;
+    odomPos.object = false;
+
+    // first, rotate the object around the origin. Since the coordinates are an
+    // offset, we do not need to subtract anything from the point.
+    std::pair<float, float> rotated = MathUtil::rotateAroundOrigin(obj.offset_x,
+                                                                   obj.offset_y,
+                                                                   odom.latestHeading);
+
+    // object node at objectPos + odomPos, and set the node label to the name of
+    // the object detected
+    mapping_msgs::Node objPos;
+    objPos.x = odom.totalX + rotated.first;
+    objPos.y = odom.totalY + rotated.second;
+    objPos.object = true;
+    objPos.label = obj.id;
+
+    addNode(odomPos);
+    addNode(objPos);
+}
+
 /**
- * Add a node to the list of nodes in the topological map. Assumes that each
- * node is connected to the one that came directly before it, and no other. If
- * the previous node is an object, then the node is connected to the previous
- * non-object node. Objects are connected in the same way.
+ * Add a node to the list of nodes in the topological map. If the previous node
+ * is an object, then the node is connected to the previous non-object node.
+ * Objects are connected in the same way, i.e. two objects detected at the same
+ * position will be connected to that position. The function also checks in the
+ * map for nodes which are in close proximity to this one, and if the distance
+ * is below a certain threshold, the nodes are assumed to be the same.
+ * Non-object nodes are not merged with object nodes, object nodes can be
+ * merged.
+ *
+ * Returns true if the node was added, false if the node was merged
  */
-void TopologicalMap::addNode(float x, float y, bool object, std::string label){
-    mapping_msgs::Node newNode;
-    newNode.x = x;
-    newNode.y = y;
-    newNode.ref = curNodeRef++;
-    newNode.object = object;
-    if (nodes.list.back().object){
-        // if the last node was an object, connect to the last non-object node
-        // in the list.
-        int nonObjectInd = nodes.list.size() - 1;
-        // go backwards through the list until the node is not an object
-        for (; nodes.list[nonObjectInd].object; nonObjectInd--);
-        
-        // link the new node to the existing one
-        newNode.links.push_back(nodes.list[nonObjectInd].ref);
-        // link the last node to the new one
-        nodes.list[nonObjectInd].links.push_back(newNode.ref);
-    } else {
-        // if the last node was not an object, link the node to the previous
-        // node
-        newNode.links.push_back(nodes.list.back().ref);
-        // link the last node to the new one
-        nodes.list.back().links.push_back(newNode.ref);
+bool TopologicalMap::addNode(mapping_msgs::Node& n){
+
+    // want to extract the node closest to the one that is being added
+    mapping_msgs::Node& closest = nodes.list.front();
+    float minDist = nodeDistance(n, closest);
+    for (size_t i = 1; i < nodes.list.size(); i++) {
+        mapping_msgs::Node& other = nodes.list[i];
+        // if the nodes are of different types, don't bother checking anything,
+        // we can't merge them
+        if (other.object != n.object){
+            continue;
+        }
+
+        float dist = nodeDistance(n, other);
+        if (dist < minDist){
+            closest = other;
+            minDist = dist;
+        }
     }
 
-    newNode.label = label;
-    ROS_INFO_STREAM("TopMap: Added node " << newNode);
+    // if the minimum distance is below the threshold, then move the closest
+    // node to the average of the new node and the old one. If the nodes are
+    // objects, only merge if they have the same label.
+    if (minDist < MERGE_DIST_THRESHOLD){
+        closest.x = (n.x + closest.x)/2;
+        closest.y = (n.y + closest.y)/2;
 
-    nodes.list.push_back(newNode);
+        addLink(closest, nodes.list[previousNodeRef]);
+
+        // merged the node instead of adding, so return false
+        return false;
+    }
+    
+    // if we end up here, the node is a new node, so set its reference and
+    // increment the reference counter
+    n.ref = nextNodeRef++;
+
+    // last index of a non-object node.
+    int connectInd = previousNodeRef;
+    if (nodes.list[connectInd].object){
+        // if the last node was an object, connect to the last non-object node
+        // in the list. Go backwards through the list until the node is not an
+        // object
+        for (; nodes.list[connectInd].object; connectInd--);
+    }
+
+    // link the nodes to each other
+    addLink(n, nodes.list[connectInd]);
+
+    // if the node added is not an object, then it is a turning node, or the
+    // node added at the point where the robot was when the object was detected.
+    // In this case, the previous node reference should be modified to this
+    // added node's reference.
+    if (!n.object){
+        previousNodeRef = n.ref;
+    }
+    
+    nodes.list.push_back(n);
+    ROS_INFO_STREAM("TopMap: Added node " << n);
+
+    return true;
+}
+
+/**
+ * Add a link between two nodes, making sure that there are no duplicates. the
+ * node lists are modified in place.
+ */
+void TopologicalMap::addLink(mapping_msgs::Node& n1, mapping_msgs::Node& n2){
+    bool n2cont = false; // n2 contains n1 ref
+    bool n1cont = false; // n1 contains n2 ref
+    // check the links of n2 for n1 ref
+    for (size_t i = 0; i < n2.links.size(); i++) {
+        if (n2.links[i] == n1.ref){
+            n2cont = true;
+            break;
+        }
+    }
+
+    for (size_t i = 0; i < n1.links.size(); i++) {
+        if (n1.links[i] == n2.ref){
+            n1cont = true;
+            break;
+        }
+    }
+
+    // add reference to node 2 if node 1 list does not contain it
+    if (!n1cont){
+        n1.links.push_back(n2.ref);
+    }
+
+    // add reference to node 1 if node 2 list does not contain it
+    if (!n2cont){
+        n2.links.push_back(n1.ref);
+    }
 }
 
 /**
@@ -267,11 +370,11 @@ visualization_msgs::MarkerArray TopologicalMap::createMarkers(){
 
         markers.markers.push_back(text);
 
-        ROS_INFO("links in node %d (%s): %d", (int)i, dispText.c_str(), (int)curNode.links.size());
+        //ROS_INFO("links in node %d (%s): %d", (int)i, dispText.c_str(), (int)curNode.links.size());
         
         geometry_msgs::Point linkedLoc;
         for (size_t i = 0; i < curNode.links.size(); i++) {
-            ROS_INFO_STREAM("" << curNode.links[i]);
+            //ROS_INFO_STREAM("" << curNode.links[i]);
             // set the location of the previous node
             linkedLoc.x = nodes.list[curNode.links[i]].x;
             linkedLoc.y = nodes.list[curNode.links[i]].y;
@@ -290,7 +393,7 @@ visualization_msgs::MarkerArray TopologicalMap::createMarkers(){
     return markers;
 }
 
-visualization_msgs::Marker TopologicalMap::createTextMarker(geometry_msgs::Point loc, std::string label){
+visualization_msgs::Marker TopologicalMap::createTextMarker(const geometry_msgs::Point& loc, const std::string& label){
     visualization_msgs::Marker text;
     text.header.frame_id = "camera_link";
     text.ns = "label " + label;
