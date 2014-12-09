@@ -9,69 +9,62 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
     ros::init(argc, argv, "topological");
     ros::NodeHandle handle;
     
+    // Initialise all the subscribers
+    std::string odom_sub_topic;
+    ROSUtil::getParam(handle, "/topic_list/hardware_topics/odometry/published/odometry_topic",
+                      odom_sub_topic);
+    sub_odometry = handle.subscribe(odom_sub_topic, 1, &TopologicalMap::odomCallback, this);
 
+    std::string ir_dist_sub_topic;
+    ROSUtil::getParam(handle, "/topic_list/hardware_topics/ir_sensors/published/ir_distance_topic",
+                      ir_dist_sub_topic);
+    sub_irdist = handle.subscribe(ir_dist_sub_topic, 1, &TopologicalMap::irCallback, this);
 
+    std::string info_sub_topic;
+    ROSUtil::getParam(handle, "/topic_list/controller_topics/wallfollower/published/turning_topic",
+                      info_sub_topic);
+    sub_controlInfo = handle.subscribe(info_sub_topic, 1000, &TopologicalMap::turnCallback, this);
+
+    sub_objDetect = handle.subscribe("/vision/detection", 1000, &TopologicalMap::detectCallback, this);
+
+    // Initialise the publisher for markers and the map
     std::string marker_topic;
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/marker_topic",
                       marker_topic);
     // latched publisher for markers
     pub_marker = handle.advertise<visualization_msgs::MarkerArray>(marker_topic, 1, true);
 
+    std::string map_topic;
+    ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/map_topic",
+                      map_topic);
+    // latched publisher for the nodelist
+    pub_map = handle.advertise<mapping_msgs::NodeList>(map_topic, 1, true);
+
     // The bag will use the bagtopic string to define the topic which
-    // the map will be published to
+    // the map will be published to within the bag
     ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/bag_topic", bagTopic);
-    
+
     // if the bag variable is set, then we read from the bag and publish the map
     // contained, otherwise construct the map based on subscribed topics
     std::string bagFileName;
     ROSUtil::getParam(handle, "/topological/mapbag", bagFileName);
+
+
+
+    // open the bag to allow intermediate maps to be saved the resulting bag
+    // will be saved to this directory. We save bags even if a map has been
+    // received, because we might add to the map.
+    ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/bag_dir", bagDir);
+
+    std::string filePath = std::string(SysUtil::fullDirPath(bagDir) +
+                                       "topmap_" +
+                                       SysUtil::getDateTimeString() + ".bag");
     
-    construct = !bagFileName.compare("none");  // 0 return means the strings are equal
-    if (construct) {
-        ROS_INFO("TopMap: No bagfile given - constructing map");
-        std::string odom_topic;
-        ROSUtil::getParam(handle, "/topic_list/hardware_topics/odometry/published/odometry_topic",
-                          odom_topic);
-        sub_odometry = handle.subscribe(odom_topic, 1, &TopologicalMap::odomCallback, this);
-
-        std::string ir_dist_topic;
-        ROSUtil::getParam(handle, "/topic_list/hardware_topics/ir_sensors/published/ir_distance_topic",
-                          ir_dist_topic);
-        sub_irdist = handle.subscribe(ir_dist_topic, 1, &TopologicalMap::irCallback, this);
-
-    
-        std::string info_sub_topic;
-        ROSUtil::getParam(handle, "/topic_list/controller_topics/wallfollower/published/turning_topic",
-                          info_sub_topic);
-        sub_controlInfo = handle.subscribe(info_sub_topic, 1000, &TopologicalMap::turnCallback, this);
-
-        sub_objDetect = handle.subscribe("/vision/detection", 1000, &TopologicalMap::detectCallback, this);
-
-        // the resulting bag will be saved to this directory
-        ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/bag_dir", bagDir);
-
-        std::string filePath = std::string(SysUtil::fullDirPath(bagDir) +
-                                           "topmap_" +
-                                           SysUtil::getDateTimeString() + ".bag");
+    topBag.open(filePath, rosbag::bagmode::Write);
+    if (bagFileName.compare("none") != 0){
+        ROS_INFO("TopMap: Bag file received: %s  - extracting contained map", bagFileName.c_str());
         
-
-        // open the bag to allow intermediate maps to be saved
-        topBag.open(filePath, rosbag::bagmode::Write);
-
-        // set bools to false
-        gotObject = false;
-        turning = false;
-    
-        runNode();
-    } else {
-        ROS_INFO("TopMap: Bag file received: %s  - publishing contained map", bagFileName.c_str());
-        
-        std::string map_topic;
-        ROSUtil::getParam(handle, "/topic_list/mapping_topics/topological/published/map_topic",
-                          map_topic);
-        // latched publisher for the nodelist
-        pub_map = handle.advertise<mapping_msgs::NodeList>(map_topic, 1, true);
-
+        // open the bagfile received
         rosbag::Bag mapBag;
         mapBag.open(bagFileName, rosbag::bagmode::Read);
     
@@ -82,19 +75,26 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
         // define a view onto the bag file - only interested in one topic
         rosbag::View view(mapBag, rosbag::TopicQuery(topics));
 
-        ROS_INFO("Reading map from %s", bagFileName.c_str());
+        // the most up to date map is the last one in the bag, so get the
+        // iterator pointing to the last element.
         for (rosbag::View::iterator it = view.begin(); it != view.end(); it++){
-            // extract the messageInstance that the iterator points to
             rosbag::MessageInstance mi = *it;
-            // Extract the segment from the bag
             nodes = *(mi.instantiate<mapping_msgs::NodeList>());
-            // Put it into the vector of segments
         }
 
-        runNode();
+        // publish the nodes and markers
+        currentMarkers = createMarkers();
+        pub_marker.publish(currentMarkers);
+        pub_map.publish(nodes);
+    } else {
+        ROS_INFO("TopMap: No bagfile given - constructing map");
     }
-    
 
+    // set bools to false
+    gotObject = false;
+    turning = false;
+
+    runNode();
 }
 
 TopologicalMap::~TopologicalMap(){
@@ -104,65 +104,63 @@ TopologicalMap::~TopologicalMap(){
 }
 
 /**
- * parameter indicates whether the map is being constructed or if we just want
- * to publish the map contained in a bagfile
+ * Run the node, adding nodes to the topological map when messages are received
  */
 void TopologicalMap::runNode(){
+    // add a node at the start position
+    mapping_msgs::Node start;
+    start.x = 0.0f;
+    start.y = 0.0f;
+    start.ref = curNodeRef++;
+    start.label = "start";
+    nodes.list.push_back(start);
 
-    if (construct) {
-        // add a node at the start position
-        mapping_msgs::Node start;
-        start.x = 0.0f;
-        start.y = 0.0f;
-        start.ref = curNodeRef++;
-        start.label = "start";
-        nodes.list.push_back(start);
+    ros::Rate loopRate(10);
+    bool added = false; // node added this loop?
+    while (ros::ok()){
+        // An object was detected
+        if (gotObject){
+            ROS_INFO("TopMap: Got object");
+            // add node at the odometry position when the object was detected
+            addNode(latestOdom.totalX, latestOdom.totalY, false);
 
-        ros::Rate loopRate(10);
-        while (ros::ok()){
-            // An object was detected
-            if (gotObject){
-                ROS_INFO("TopMap: Got object");
-                // add node at the odometry position when the object was detected
-                addNode(latestOdom.totalX, latestOdom.totalY, false);
+            // first, rotate the object around the origin. Since the
+            // coordinates are an offset, we do not need to subtract
+            // anything from the point.
+            std::pair<float, float> rotated = MathUtil::rotateAroundOrigin(latestObject.offset_x, latestObject.offset_y, latestOdom.latestHeading);
 
-                // first, rotate the object around the origin. Since the
-                // coordinates are an offset, we do not need to subtract
-                // anything from the point.
-                std::pair<float, float> rotated = MathUtil::rotateAroundOrigin(latestObject.offset_x, latestObject.offset_y, latestOdom.latestHeading);
+            // add object to map at objectPos + odomPos, and set the node label
+            // to the name of the object detected
+            addNode(latestOdom.totalX + rotated.first,
+                    latestOdom.totalY + rotated.second, true, latestObject.id);
 
-                // add object to map at objectPos + odomPos, and set the node label
-                // to the name of the object detected
-                addNode(latestOdom.totalX + rotated.first,
-                        latestOdom.totalY + rotated.second, true, latestObject.id);
-
-                // reset the flag
-                gotObject = false;
-                // update the markers being published
-                currentMarkers = createMarkers();
-                saveMap();
-            }
-            // robot is turning
-            if (turning){
-                ROS_INFO("TopMap: Got turn message");
-                // create a node at the current odometry position
-                addNode(latestOdom.totalX, latestOdom.totalY, false);
-                turning = false; // only create a single node when the message is received
-                // update the markers being published
-                currentMarkers = createMarkers();
-                saveMap();
-            }
-            ros::spinOnce();
-            pub_marker.publish(currentMarkers);
-            loopRate.sleep();
+            // reset the flag
+            gotObject = false;
+            added = true;
         }
-    } else {
-        visualization_msgs::MarkerArray markers = createMarkers();
-        pub_map.publish(nodes);
-        pub_marker.publish(markers);
-        ros::spin();
+        // robot is turning
+        if (turning){
+            ROS_INFO("TopMap: Got turn message");
+            // create a node at the current odometry position
+            addNode(latestOdom.totalX, latestOdom.totalY, false);
+            turning = false; // only create a single node when the message is received
+            // update the markers being published
+            added = true;
+        }
+        if (added){
+            // update markers
+            currentMarkers = createMarkers();
+            // publish the updated markers and nodes
+            pub_marker.publish(currentMarkers);
+            pub_map.publish(nodes);
+            saveMap();
+            added = false;
+        }
+                    
+        ros::spinOnce();
+        loopRate.sleep();
     }
-    
+
 }
 
 void TopologicalMap::saveMap(){
@@ -204,6 +202,13 @@ void TopologicalMap::addNode(float x, float y, bool object, std::string label){
     ROS_INFO_STREAM("TopMap: Added node " << newNode);
 
     nodes.list.push_back(newNode);
+}
+
+/**
+ * Euclidean distance between two nodes.
+ */
+float TopologicalMap::nodeDistance(mapping_msgs::Node n1, mapping_msgs::Node n2){
+    return sqrt(std::pow(n2.x - n1.x, 2) + std::pow(n2.y - n1.y, 2));
 }
 
 visualization_msgs::MarkerArray TopologicalMap::createMarkers(){

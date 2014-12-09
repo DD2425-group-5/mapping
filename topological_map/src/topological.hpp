@@ -54,14 +54,17 @@ private:
     visualization_msgs::MarkerArray currentMarkers;
 
 
+    void saveMap();
+    void runNode();
+    void addNode(float x, float y, bool object, std::string label="");
+    float nodeDistance(mapping_msgs::Node n1, mapping_msgs::Node n2);
+    
     void odomCallback(const hardware_msgs::Odometry& msg);
     void irCallback(const hardware_msgs::IRDists& msg);
     void turnCallback(const controller_msgs::Turning& msg);
     void detectCallback(const vision_msgs::object_found& msg);
 
-    void addNode(float x, float y, bool object, std::string label="");
+
     visualization_msgs::MarkerArray createMarkers();
     visualization_msgs::Marker createTextMarker(geometry_msgs::Point loc, std::string label);
-    void saveMap();
-    void runNode();
 };
