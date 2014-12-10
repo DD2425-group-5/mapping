@@ -59,6 +59,23 @@ private:
     std::vector<int> traversedNodes;
     
     mapping_msgs::NodeList nodes;
+
+    // uses references to nodes so that they can be modified
+    struct Edge {
+        Edge(mapping_msgs::Node* _n1, mapping_msgs::Node* _n2){
+            n1 = _n1;
+            n2 = _n2;
+            edge = MathUtil::Line(n1->x, n1->y, n2->x, n2->y);
+        }
+        mapping_msgs::Node* n1;
+        mapping_msgs::Node* n2;
+        MathUtil::Line edge;
+    };
+
+    // store the lines in the map as a vector of floats, where each four floats
+    // define a line in the order x1,y1,x2,y2. Used to facilitate easier
+    // and less expensive intersection computation.
+    std::vector<Edge> lines;
     // markerarray containing all the markers that have 
     visualization_msgs::MarkerArray currentMarkers;
 
@@ -75,7 +92,7 @@ private:
     void irCallback(const hardware_msgs::IRDists& msg);
     void turnCallback(const controller_msgs::Turning& msg);
     void detectCallback(const vision_msgs::object_found& msg);
-
+    bool checkLineIntersections(mapping_msgs::Node& addedNode, mapping_msgs::Node& previousNode);
 
     visualization_msgs::MarkerArray createMarkers();
     visualization_msgs::Marker createTextMarker(const geometry_msgs::Point& loc, const std::string& label);

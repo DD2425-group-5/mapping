@@ -184,15 +184,15 @@ void TopologicalMap::addObject(const hardware_msgs::Odometry& odom,
 
     // first, rotate the object around the origin. Since the coordinates are an
     // offset, we do not need to subtract anything from the point.
-    std::pair<float, float> rotated = MathUtil::rotateAroundOrigin(obj.offset_x,
-                                                                   obj.offset_y,
-                                                                   odom.latestHeading);
+    MathUtil::Point rotated = MathUtil::rotateAroundOrigin(obj.offset_x,
+                                                 obj.offset_y,
+                                                 odom.latestHeading);
 
     // object node at objectPos + odomPos, and set the node label to the name of
     // the object detected
     mapping_msgs::Node objPos;
-    objPos.x = odom.totalX + rotated.first;
-    objPos.y = odom.totalY + rotated.second;
+    objPos.x = odom.totalX + rotated.x;
+    objPos.y = odom.totalY + rotated.y;
     objPos.object = true;
     objPos.label = obj.id;
 
@@ -259,16 +259,29 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
     // increment the reference counter
     n.ref = nextNodeRef++;
 
-    // link the node to the previous traversed node (will never link to objects)
-    addLink(n, nodes.list[traversedNodes.back()]);
 
     // if the node added is not an object, then it is a turning node, or the
     // node added at the point where the robot was when the object was detected.
     // In this case, the reference of the new node should be added to the end of
     // the list of traversed nodes
+    bool intersect = false;
     if (!n.object){
         traversedNodes.push_back(n.ref);
+        // check the line intersections for the link between the previous node and
+        // the new one. If the link intersects other lines already in the map, add
+        // those nodes to the map and link them to the nodes which define the lines
+        // that intersect.
+        checkLineIntersections(n, nodes.list[traversedNodes.back()]);
     }
+
+    // if there was an itersection with other nodes, then the new node should
+    // not be connected to the previous node as there are intermediate nodes
+    // connecting the two
+    if (!intersect){
+        // link the node to the previous traversed node (will never link to objects)
+        addLink(n, nodes.list[traversedNodes.back()]);
+    }
+    
     
     nodes.list.push_back(n);
     ROS_INFO_STREAM("TopMap: Added node " << n);
@@ -315,6 +328,77 @@ void TopologicalMap::addLink(mapping_msgs::Node& n1, mapping_msgs::Node& n2){
     if (!n2cont){
         n2.links.push_back(n1.ref);
     }
+
+    // add a line to the list of lines in the map, but only if both of the nodes
+    // are not objects
+    if (!n1.object && !n2.object){
+        lines.push_back(Edge(&n1, &n2));
+    }
+}
+
+/**
+ * When a new node is added to the map, check the edges that were added between
+ * non-object nodes to see if they intersect. If an intersection is found, add a
+ * node at the intersection, and connect it to each of the four nodes which
+ * define the line endpoints of the two lines which intersected. There may be
+ * multiple intersections for a single line. The links between nodes in
+ * participating edges will be removed and replaced with links to the new node
+ * at the intersection point.
+ * 
+ * !!! Assumes that the nodes passed in have not already been connected !!!
+ * May modify the links of the nodes, so not const.
+ *
+ * The parameters are the node that was just added, and the node that the robot
+ * came from to define that edge.
+ */
+bool TopologicalMap::checkLineIntersections(mapping_msgs::Node& addedNode, mapping_msgs::Node& previousNode){
+    // we will compare this line to others in the map
+    MathUtil::Line newLine(addedNode.x, addedNode.y, previousNode.x, previousNode.y);
+
+    // iterate over lines in the map, and check intersection with the line
+    // above.
+    for (size_t i = 0; i < lines.size(); i++) {
+        MathUtil::Point intersection;
+        try {
+            intersection = lineIntersection(newLine, lines[i].edge);
+        } catch (int e) {// error 1 if lines are parallel or coincident
+            continue; // ignore this line
+        }
+        // the intersection is only valid if it occurs within the bounds of both
+        // line segments
+        if (MathUtil::pointInBounds(intersection, MathUtil::lineBounds(newLine))
+            && MathUtil::pointInBounds(intersection, MathUtil::lineBounds(lines[i].edge))){
+            // create a new node at the intersection point
+            mapping_msgs::Node newNode;
+            newNode.x = intersection.x;
+            newNode.y = intersection.y;
+            newNode.ref = nextNodeRef++;
+                        
+            // if valid, add the intersection node, and replace links between
+            // the start and end nodes of the lines with links to the new node
+            // extract the references of the line endpoints
+            int n1ref = lines[i].n1->ref;
+            int n2ref = lines[i].n2->ref;
+            // iterator pointing to the n2 ref in the n1 links array
+            std::vector<unsigned int>::iterator it1 = find(lines[i].n1->links.begin(), lines[i].n1->links.end(), n2ref);
+            // iterator pointing to the n1 ref in the n2 links array
+            std::vector<unsigned int>::iterator it2 = find(lines[i].n2->links.begin(), lines[i].n2->links.end(), n1ref);
+            
+            // remove the references from each node's link vector
+            lines[i].n1->links.erase(it1);
+            lines[i].n2->links.erase(it2);
+
+            // add the links to the nodes which create the intersection
+            addLink(newNode, *lines[i].n1);
+            addLink(newNode, *lines[i].n2);
+            addLink(newNode, addedNode);
+            addLink(newNode, previousNode);
+
+            return true;
+        }
+    }
+
+    return false;
 }
 
 /**
