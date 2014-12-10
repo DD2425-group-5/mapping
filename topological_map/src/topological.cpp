@@ -96,9 +96,10 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
         pub_map.publish(nodes);
     } else {
         ROS_INFO("TopMap: No bagfile given - constructing map");
+        construct = true;
     }
 
-    previousNodeRef = 0; // the robot always starts at the first node added to the list
+    traversedNodes.push_back(0); // the robot always starts at the first node added to the list
 
     // set bools to false
     gotObject = false;
@@ -121,9 +122,8 @@ void TopologicalMap::runNode(){
     mapping_msgs::Node start;
     start.x = 0.0f;
     start.y = 0.0f;
-    start.ref = nextNodeRef++;
     start.label = "start";
-    nodes.list.push_back(start);
+    addNode(start);
 
     ros::Rate loopRate(10);
     bool added = false; // node added this loop?
@@ -160,6 +160,7 @@ void TopologicalMap::runNode(){
             pub_map.publish(nodes);
             saveMap();
             added = false;
+            //ROS_INFO_STREAM("Current nodes: \n" << nodes);
         }
                     
         ros::spinOnce();
@@ -212,12 +213,20 @@ void TopologicalMap::addObject(const hardware_msgs::Odometry& odom,
  * Returns true if the node was added, false if the node was merged
  */
 bool TopologicalMap::addNode(mapping_msgs::Node& n){
+    if (n.label.compare("start") == 0 && construct){ // hack to deal with the first node in a new map
+        ROS_INFO("starting");
+        n.ref = nextNodeRef++;
+        nodes.list.push_back(n);
+        return true;
+    }
+
+    // ROS_INFO("Last traversed node: %d", traversedNodes.back());
 
     // want to extract the node closest to the one that is being added
-    mapping_msgs::Node& closest = nodes.list.front();
-    float minDist = nodeDistance(n, closest);
+    int closestInd = 0;
+    float minDist = nodeDistance(n, nodes.list[closestInd]);
     for (size_t i = 1; i < nodes.list.size(); i++) {
-        mapping_msgs::Node& other = nodes.list[i];
+        mapping_msgs::Node other = nodes.list[i];
         // if the nodes are of different types, don't bother checking anything,
         // we can't merge them
         if (other.object != n.object){
@@ -226,19 +235,21 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
 
         float dist = nodeDistance(n, other);
         if (dist < minDist){
-            closest = other;
+            closestInd = i;
             minDist = dist;
         }
     }
 
+    ROS_INFO("Distance to closest node(%d): %f, threshold: %f", nodes.list[closestInd].ref, minDist, MERGE_DIST_THRESHOLD);
     // if the minimum distance is below the threshold, then move the closest
     // node to the average of the new node and the old one. If the nodes are
     // objects, only merge if they have the same label.
     if (minDist < MERGE_DIST_THRESHOLD){
+        mapping_msgs::Node& closest = nodes.list[closestInd];
         closest.x = (n.x + closest.x)/2;
         closest.y = (n.y + closest.y)/2;
 
-        addLink(closest, nodes.list[previousNodeRef]);
+        addLink(closest, nodes.list[traversedNodes.back()]);
 
         // merged the node instead of adding, so return false
         return false;
@@ -248,28 +259,24 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
     // increment the reference counter
     n.ref = nextNodeRef++;
 
-    // last index of a non-object node.
-    int connectInd = previousNodeRef;
-    if (nodes.list[connectInd].object){
-        // if the last node was an object, connect to the last non-object node
-        // in the list. Go backwards through the list until the node is not an
-        // object
-        for (; nodes.list[connectInd].object; connectInd--);
-    }
-
-    // link the nodes to each other
-    addLink(n, nodes.list[connectInd]);
+    // link the node to the previous traversed node (will never link to objects)
+    addLink(n, nodes.list[traversedNodes.back()]);
 
     // if the node added is not an object, then it is a turning node, or the
     // node added at the point where the robot was when the object was detected.
-    // In this case, the previous node reference should be modified to this
-    // added node's reference.
+    // In this case, the reference of the new node should be added to the end of
+    // the list of traversed nodes
     if (!n.object){
-        previousNodeRef = n.ref;
+        traversedNodes.push_back(n.ref);
     }
     
     nodes.list.push_back(n);
     ROS_INFO_STREAM("TopMap: Added node " << n);
+    std::cout << "Traversed nodes: ";
+    for (size_t i = 0; i < traversedNodes.size(); i++) {
+        std::cout << traversedNodes[i] << ", ";
+    }
+    std::cout << std::endl;
 
     return true;
 }
@@ -281,6 +288,9 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
 void TopologicalMap::addLink(mapping_msgs::Node& n1, mapping_msgs::Node& n2){
     bool n2cont = false; // n2 contains n1 ref
     bool n1cont = false; // n1 contains n2 ref
+    
+    ROS_INFO("LINKING NODE %d TO NODE %d", n1.ref, n2.ref);
+    
     // check the links of n2 for n1 ref
     for (size_t i = 0; i < n2.links.size(); i++) {
         if (n2.links[i] == n1.ref){

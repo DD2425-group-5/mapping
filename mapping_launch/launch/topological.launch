@@ -5,5 +5,6 @@
   <arg name="mapfile" default="none"/>
   <param name="/topological/mapbag" value="$(arg mapfile)"/>
   <rosparam file="$(find project_launch)/config/topic_names.yaml" command="load"/>
+  <rosparam file="$(find topological_map)/config/params.yaml" command="load"/>
   <node name="topological_map" pkg="topological_map" type="topological_map" output="screen"/>
 </launch>

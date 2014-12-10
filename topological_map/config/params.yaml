@@ -1,5 +1,5 @@
 # how close does a new node need to be to another node to be merged into that
 # node?
 topological_map: {
-  merge_dist_threshold: 0.5
+  merge_dist_threshold: 0.15
 }

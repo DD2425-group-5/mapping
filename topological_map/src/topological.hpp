@@ -2,6 +2,7 @@
 #include <rosbag/bag.h>
 #include <rosbag/query.h>
 #include <rosbag/view.h>
+#include <iostream>
 #include "rosutil/rosutil.hpp"
 #include "sysutil/sysutil.hpp"
 #include "mathutil/mathutil.hpp"
@@ -53,9 +54,9 @@ private:
     int nextNodeRef;
 
     // this should really be somewhere else - use this to keep track of the
-    // previous node. Need to do this to ensure that nodes are added in the
+    // previous nodes. Need to do this to ensure that nodes are added in the
     // correct place when we go over locations multiple times.
-    int previousNodeRef;
+    std::vector<int> traversedNodes;
     
     mapping_msgs::NodeList nodes;
     // markerarray containing all the markers that have 
