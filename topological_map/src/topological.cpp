@@ -42,6 +42,7 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
 
 
     ROSUtil::getParam(handle, "/topological_map/merge_dist_threshold", MERGE_DIST_THRESHOLD);
+    ROSUtil::getParam(handle, "/topological_map/bbox_shrink", BBOX_SHRINK);
 
     // The bag will use the bagtopic string to define the topic which
     // the map will be published to within the bag
@@ -71,20 +72,21 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
         // open the bagfile received
         rosbag::Bag mapBag;
         mapBag.open(bagFileName, rosbag::bagmode::Read);
-    
+
         // define the topics to read
         std::vector<std::string> topics;
         topics.push_back(bagTopic);
-    
+
         // define a view onto the bag file - only interested in one topic
         rosbag::View view(mapBag, rosbag::TopicQuery(topics));
-
+        
         // the most up to date map is the last one in the bag, so get the
         // iterator pointing to the last element.
         for (rosbag::View::iterator it = view.begin(); it != view.end(); it++){
             rosbag::MessageInstance mi = *it;
             nodes = *(mi.instantiate<mapping_msgs::NodeList>());
         }
+
         
         // need to start the references so that the references that were already
         // used in the generation of the map are not duplicated
@@ -149,7 +151,7 @@ void TopologicalMap::runNode(){
             odom.x = latestOdom.totalX;
             odom.y = latestOdom.totalY;
             odom.object = false;
-            //odom.turn = true;
+            odom.turn = true;
 
             addNode(odom);
 
@@ -190,8 +192,8 @@ void TopologicalMap::addObject(const hardware_msgs::Odometry& odom,
     // first, rotate the object around the origin. Since the coordinates are an
     // offset, we do not need to subtract anything from the point.
     MathUtil::Point rotated = MathUtil::rotateAroundOrigin(obj.offset_x,
-                                                 obj.offset_y,
-                                                 odom.latestHeading);
+                                                           obj.offset_y,
+                                                           odom.latestHeading);
 
     // object node at objectPos + odomPos, and set the node label to the name of
     // the object detected
@@ -376,35 +378,54 @@ void TopologicalMap::addLink(mapping_msgs::Node& n1, mapping_msgs::Node& n2){
 bool TopologicalMap::checkLineIntersections(mapping_msgs::Node& addedNode, mapping_msgs::Node& previousNode){
     // we will compare this line to others in the map
     MathUtil::Line newLine(addedNode.x, addedNode.y, previousNode.x, previousNode.y);
+    MathUtil::Bounds2D newBounds = MathUtil::lineBounds(newLine, BBOX_SHRINK);
+    ROS_INFO_STREAM("Line between new point and previous node: \n" << newLine);
+    ROS_INFO_STREAM("Newline bounds: \n" << newBounds);
 
     // iterate over lines in the map, and check intersection with the line
     // above.
     for (size_t i = 0; i < lines.size(); i++) {
+        ROS_INFO_STREAM("Checking intersection of newline with line " << i << ": \n" << lines[i].edge);
+        lines[i].print();
+        
         MathUtil::Point intersection;
         try {
             intersection = lineIntersection(newLine, lines[i].edge);
+            ROS_INFO_STREAM("Intersection point " << intersection);
         } catch (int e) {// error 1 if lines are parallel or coincident
+            ROS_INFO("Lines were parallel or coincident");
             continue; // ignore this line
         }
         // the intersection is only valid if it occurs within the bounds of both
         // line segments
-        if (MathUtil::pointInBounds(intersection, MathUtil::lineBounds(newLine))
-            && MathUtil::pointInBounds(intersection, MathUtil::lineBounds(lines[i].edge))){
+
+        MathUtil::Bounds2D checkBounds = MathUtil::lineBounds(lines[i].edge, BBOX_SHRINK);
+        ROS_INFO_STREAM("Bounds of the check line: \n" << checkBounds);
+        if (MathUtil::pointInBounds(intersection, newBounds)
+            && MathUtil::pointInBounds(intersection, checkBounds)){
+            ROS_INFO("Intersection point is in the bounds of both lines.");
             // create a new node at the intersection point
             mapping_msgs::Node newNode;
             newNode.x = intersection.x;
             newNode.y = intersection.y;
             newNode.ref = nextNodeRef++;
+
+            ROS_INFO_STREAM("Created intermediate node\n" << newNode);
                         
             // if valid, add the intersection node, and replace links between
             // the start and end nodes of the lines with links to the new node
             // extract the references of the line endpoints
             int n1ref = lines[i].n1->ref;
             int n2ref = lines[i].n2->ref;
+            ROS_INFO("Compared line is from %d to %d", n1ref, n2ref);
+            ROS_INFO_STREAM("Node 1\n" << *(lines[i].n1) << "\n" << "Node 2\n" << *(lines[i].n2));
+
             // iterator pointing to the n2 ref in the n1 links array
             std::vector<unsigned int>::iterator it1 = find(lines[i].n1->links.begin(), lines[i].n1->links.end(), n2ref);
             // iterator pointing to the n1 ref in the n2 links array
             std::vector<unsigned int>::iterator it2 = find(lines[i].n2->links.begin(), lines[i].n2->links.end(), n1ref);
+
+            ROS_INFO("Got iterators pointing to references to the two nodes which make up the line that already existed.");
             
             // remove the references from each node's link vector
             lines[i].n1->links.erase(it1);

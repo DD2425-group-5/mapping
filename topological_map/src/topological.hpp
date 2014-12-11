@@ -35,6 +35,10 @@ private:
 
     // below this threshold, nodes can be merged
     float MERGE_DIST_THRESHOLD;
+    // define how much the bounding box of lines is shrunk before checking if
+    // the intersection point is inside the box. Since there will always be an
+    // intersection between lines which meet at a node, this is a simple fix.
+    float BBOX_SHRINK;
     
     // flags for indicating when to save a node
     bool gotObject;
@@ -65,13 +69,19 @@ private:
         Edge(mapping_msgs::Node* _n1, mapping_msgs::Node* _n2){
             n1 = _n1;
             n2 = _n2;
+            ROS_INFO_STREAM("EDGE: Created edge between Node 1\n" << *n1 << "\n" << "Node 2\n" << *n2);
             edge = MathUtil::Line(n1->x, n1->y, n2->x, n2->y);
         }
         mapping_msgs::Node* n1;
         mapping_msgs::Node* n2;
         MathUtil::Line edge;
+        void print(){
+            ROS_INFO_STREAM("Node 1: " << *n1);
+            ROS_INFO_STREAM("Node 2: " << *n2);
+            ROS_INFO_STREAM("Connecting edge " << edge);
+        }
     };
-
+    
     // store the lines in the map as a vector of floats, where each four floats
     // define a line in the order x1,y1,x2,y2. Used to facilitate easier
     // and less expensive intersection computation.
