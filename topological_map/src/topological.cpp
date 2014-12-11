@@ -262,6 +262,10 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
         mapping_msgs::Node& closest = nodes.list[closestInd];
         closest.x = (n.x + closest.x)/2;
         closest.y = (n.y + closest.y)/2;
+        
+        // since we merged the nodes, the last traversed node becomes the
+        // existing node.
+        traversedNodes.push_back(closest.ref);
 
         addLink(closest, lastTraversedNode);
 
