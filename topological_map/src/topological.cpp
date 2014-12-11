@@ -97,6 +97,7 @@ TopologicalMap::TopologicalMap(int argc, char *argv[]) {
     } else {
         ROS_INFO("TopMap: No bagfile given - constructing map");
         construct = true;
+        nextNodeRef = 0; // start off node references at zero
     }
 
     traversedNodes.push_back(0); // the robot always starts at the first node added to the list
@@ -119,11 +120,14 @@ TopologicalMap::~TopologicalMap(){
  */
 void TopologicalMap::runNode(){
     // add a node at the start position
-    mapping_msgs::Node start;
-    start.x = 0.0f;
-    start.y = 0.0f;
-    start.label = "start";
-    addNode(start);
+    if (construct){
+        mapping_msgs::Node start;
+        start.x = 0.0f;
+        start.y = 0.0f;
+        start.label = "start";
+        addNode(start);
+    }
+    
 
     ros::Rate loopRate(10);
     bool added = false; // node added this loop?
@@ -145,6 +149,7 @@ void TopologicalMap::runNode(){
             odom.x = latestOdom.totalX;
             odom.y = latestOdom.totalY;
             odom.object = false;
+            //odom.turn = true;
 
             addNode(odom);
 
@@ -216,6 +221,7 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
     if (n.label.compare("start") == 0 && construct){ // hack to deal with the first node in a new map
         ROS_INFO("starting");
         n.ref = nextNodeRef++;
+        ROS_INFO("First node ref: %d", n.ref);
         nodes.list.push_back(n);
         return true;
     }
@@ -225,11 +231,14 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
     // want to extract the node closest to the one that is being added
     int closestInd = 0;
     float minDist = nodeDistance(n, nodes.list[closestInd]);
+    ROS_INFO("Node list size: %d", (int)nodes.list.size());
+    ROS_INFO("Looking for closest node to new node");
     for (size_t i = 1; i < nodes.list.size(); i++) {
         mapping_msgs::Node other = nodes.list[i];
         // if the nodes are of different types, don't bother checking anything,
         // we can't merge them
         if (other.object != n.object){
+            ROS_INFO("Objects are not of the same type, skipping.");
             continue;
         }
 
@@ -241,15 +250,20 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
     }
 
     ROS_INFO("Distance to closest node(%d): %f, threshold: %f", nodes.list[closestInd].ref, minDist, MERGE_DIST_THRESHOLD);
+
+    // Extract the last traversed node from the list
+    mapping_msgs::Node& lastTraversedNode = nodes.list[traversedNodes.back()];
+    ROS_INFO_STREAM("Last traversed node: \n" << lastTraversedNode);
+
     // if the minimum distance is below the threshold, then move the closest
-    // node to the average of the new node and the old one. If the nodes are
-    // objects, only merge if they have the same label.
-    if (minDist < MERGE_DIST_THRESHOLD){
+    // node to the average of the new node and the closest one that was already
+    // in the list. Does not merge objects.
+    if (minDist < MERGE_DIST_THRESHOLD && !n.object){
         mapping_msgs::Node& closest = nodes.list[closestInd];
         closest.x = (n.x + closest.x)/2;
         closest.y = (n.y + closest.y)/2;
 
-        addLink(closest, nodes.list[traversedNodes.back()]);
+        addLink(closest, lastTraversedNode);
 
         // merged the node instead of adding, so return false
         return false;
@@ -259,7 +273,6 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
     // increment the reference counter
     n.ref = nextNodeRef++;
 
-
     // if the node added is not an object, then it is a turning node, or the
     // node added at the point where the robot was when the object was detected.
     // In this case, the reference of the new node should be added to the end of
@@ -267,11 +280,12 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
     bool intersect = false;
     if (!n.object){
         traversedNodes.push_back(n.ref);
+        
         // check the line intersections for the link between the previous node and
         // the new one. If the link intersects other lines already in the map, add
         // those nodes to the map and link them to the nodes which define the lines
         // that intersect.
-        checkLineIntersections(n, nodes.list[traversedNodes.back()]);
+        //checkLineIntersections(n, lastTraversedNode);
     }
 
     // if there was an itersection with other nodes, then the new node should
@@ -279,12 +293,12 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
     // connecting the two
     if (!intersect){
         // link the node to the previous traversed node (will never link to objects)
-        addLink(n, nodes.list[traversedNodes.back()]);
+        addLink(n, lastTraversedNode);
     }
     
     
     nodes.list.push_back(n);
-    ROS_INFO_STREAM("TopMap: Added node " << n);
+    ROS_INFO_STREAM("TopMap: Added node\n" << n);
     std::cout << "Traversed nodes: ";
     for (size_t i = 0; i < traversedNodes.size(); i++) {
         std::cout << traversedNodes[i] << ", ";
@@ -307,6 +321,7 @@ void TopologicalMap::addLink(mapping_msgs::Node& n1, mapping_msgs::Node& n2){
     // check the links of n2 for n1 ref
     for (size_t i = 0; i < n2.links.size(); i++) {
         if (n2.links[i] == n1.ref){
+            ROS_INFO("Node %d already contains link to node %d", n2.ref, n1.ref);
             n2cont = true;
             break;
         }
@@ -314,6 +329,7 @@ void TopologicalMap::addLink(mapping_msgs::Node& n1, mapping_msgs::Node& n2){
 
     for (size_t i = 0; i < n1.links.size(); i++) {
         if (n1.links[i] == n2.ref){
+            ROS_INFO("Node %d already contains link to node %d", n1.ref, n2.ref);
             n1cont = true;
             break;
         }
@@ -321,11 +337,13 @@ void TopologicalMap::addLink(mapping_msgs::Node& n1, mapping_msgs::Node& n2){
 
     // add reference to node 2 if node 1 list does not contain it
     if (!n1cont){
+        ROS_INFO("Node %d did not have a link to node %d", n1.ref, n2.ref);
         n1.links.push_back(n2.ref);
     }
 
     // add reference to node 1 if node 2 list does not contain it
     if (!n2cont){
+        ROS_INFO("Node %d did not have a link to node %d", n2.ref, n1.ref);
         n2.links.push_back(n1.ref);
     }
 
