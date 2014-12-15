@@ -254,13 +254,15 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
     ROS_INFO("Distance to closest node(%d): %f, threshold: %f", nodes.list[closestInd].ref, minDist, MERGE_DIST_THRESHOLD);
 
     // Extract the last traversed node from the list
-    mapping_msgs::Node& lastTraversedNode = nodes.list[traversedNodes.back()];
-    ROS_INFO_STREAM("Last traversed node: \n" << lastTraversedNode);
+    //int lastTraversedNode
+    int lastTraversedInd = traversedNodes.back();
+    //ROS_INFO_STREAM("Last traversed node: \n" << lastTraversedNode);
 
     // if the minimum distance is below the threshold, then move the closest
     // node to the average of the new node and the closest one that was already
     // in the list. Does not merge objects.
     if (minDist < MERGE_DIST_THRESHOLD && !n.object){
+        ROS_INFO("Merging nodes!");
         mapping_msgs::Node& closest = nodes.list[closestInd];
         closest.x = (n.x + closest.x)/2;
         closest.y = (n.y + closest.y)/2;
@@ -269,7 +271,7 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
         // existing node.
         traversedNodes.push_back(closest.ref);
 
-        addLink(closest, lastTraversedNode);
+        addLink(closest, nodes.list[lastTraversedInd]);
 
         // merged the node instead of adding, so return false
         return false;
@@ -291,7 +293,7 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
         // the new one. If the link intersects other lines already in the map, add
         // those nodes to the map and link them to the nodes which define the lines
         // that intersect.
-        //checkLineIntersections(n, lastTraversedNode);
+        //checkLineIntersections(n, nodes.list[lastTraversedInd]);
     }
 
     // if there was an itersection with other nodes, then the new node should
@@ -299,7 +301,7 @@ bool TopologicalMap::addNode(mapping_msgs::Node& n){
     // connecting the two
     if (!intersect){
         // link the node to the previous traversed node (will never link to objects)
-        addLink(n, lastTraversedNode);
+        addLink(n, nodes.list[lastTraversedInd]);
     }
     
     
@@ -356,7 +358,7 @@ void TopologicalMap::addLink(mapping_msgs::Node& n1, mapping_msgs::Node& n2){
     // add a line to the list of lines in the map, but only if both of the nodes
     // are not objects
     if (!n1.object && !n2.object){
-        lines.push_back(Edge(&n1, &n2));
+        lines.push_back(Edge(n1, n2));
     }
 }
 
@@ -409,33 +411,50 @@ bool TopologicalMap::checkLineIntersections(mapping_msgs::Node& addedNode, mappi
             newNode.x = intersection.x;
             newNode.y = intersection.y;
             newNode.ref = nextNodeRef++;
+            nodes.list.push_back(newNode);
 
             ROS_INFO_STREAM("Created intermediate node\n" << newNode);
-                        
             // if valid, add the intersection node, and replace links between
             // the start and end nodes of the lines with links to the new node
             // extract the references of the line endpoints
-            int n1ref = lines[i].n1->ref;
-            int n2ref = lines[i].n2->ref;
-            ROS_INFO("Compared line is from %d to %d", n1ref, n2ref);
-            ROS_INFO_STREAM("Node 1\n" << *(lines[i].n1) << "\n" << "Node 2\n" << *(lines[i].n2));
+            int n1ref = lines[i].n1ref;
+            int n2ref = lines[i].n2ref;
+            ROS_INFO("Compared line is from n1ref: %d to n2ref: %d", n1ref, n2ref);
+            //ROS_INFO_STREAM("Node 1\n" << nodes.list[n1ref] << "\n" << "Node 2\n" << nodes.list[n2ref]);
+            
+            int n2loc = -1;
+            for (size_t i = 0; i < nodes.list[n1ref].links.size(); i++) {
+                // if the n2 ref is located, save the location and break
+                ROS_INFO("n1 link %d: %d ", (int)i, nodes.list[n1ref].links[i]);
+                if (nodes.list[n1ref].links[i] == n2ref){
+                    n2loc = i;
+                    break;
+                }
+            }
 
-            // iterator pointing to the n2 ref in the n1 links array
-            std::vector<unsigned int>::iterator it1 = find(lines[i].n1->links.begin(), lines[i].n1->links.end(), n2ref);
-            // iterator pointing to the n1 ref in the n2 links array
-            std::vector<unsigned int>::iterator it2 = find(lines[i].n2->links.begin(), lines[i].n2->links.end(), n1ref);
+            int n1loc = -1;
+            for (size_t i = 0; i < nodes.list[n2ref].links.size(); i++) {
+                // if the n2 ref is located, save the location and break
+                ROS_INFO("n2 link %d: %d ", (int)i, nodes.list[n2ref].links[i]);
+                if (nodes.list[n2ref].links[i] == n1ref){
+                    n1loc = i;
+                    break;
+                }
+            }
+
+            ROS_INFO("n2loc %d, n1loc %d", n2loc, n1loc);
 
             ROS_INFO("Got iterators pointing to references to the two nodes which make up the line that already existed.");
             
             // remove the references from each node's link vector
-            lines[i].n1->links.erase(it1);
-            lines[i].n2->links.erase(it2);
+            nodes.list[n1ref].links.erase(nodes.list[n1ref].links.begin() + n2loc);
+            nodes.list[n2ref].links.erase(nodes.list[n2ref].links.begin() + n1loc);
 
             // add the links to the nodes which create the intersection
-            addLink(newNode, *lines[i].n1);
-            addLink(newNode, *lines[i].n2);
-            addLink(newNode, addedNode);
+            addLink(newNode, nodes.list[n1ref]);
+            addLink(newNode, nodes.list[n2ref]);
             addLink(newNode, previousNode);
+            addLink(newNode, addedNode);
 
             return true;
         }

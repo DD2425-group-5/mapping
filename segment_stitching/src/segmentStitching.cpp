@@ -153,7 +153,7 @@ visualization_msgs::Marker SegmentStitching::makeLineMarkers(const std::vector<L
     marker.scale.x = 0.05;
     marker.scale.y = 0.05;
     marker.scale.z = 0.05;
-    marker.color.a = 1.0;
+    marker.color.a = 0.8;
     marker.color.r = 0.0;
     marker.color.g = 1.0;
     marker.color.b = 0.0;

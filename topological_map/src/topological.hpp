@@ -66,18 +66,18 @@ private:
 
     // uses references to nodes so that they can be modified
     struct Edge {
-        Edge(mapping_msgs::Node* _n1, mapping_msgs::Node* _n2){
-            n1 = _n1;
-            n2 = _n2;
-            ROS_INFO_STREAM("EDGE: Created edge between Node 1\n" << *n1 << "\n" << "Node 2\n" << *n2);
-            edge = MathUtil::Line(n1->x, n1->y, n2->x, n2->y);
+        Edge(const mapping_msgs::Node& _n1, const mapping_msgs::Node& _n2){
+            n1ref = _n1.ref;
+            n2ref = _n2.ref;
+            ROS_INFO_STREAM("EDGE: Created edge between Node 1\n" << _n1 << "\n" << "Node 2\n" << _n2);
+            edge = MathUtil::Line(_n1.x, _n1.y, _n2.x, _n2.y);
         }
-        mapping_msgs::Node* n1;
-        mapping_msgs::Node* n2;
+        int n1ref;
+        int n2ref;
         MathUtil::Line edge;
         void print(){
-            ROS_INFO_STREAM("Node 1: " << *n1);
-            ROS_INFO_STREAM("Node 2: " << *n2);
+            ROS_INFO_STREAM("Node 1: " << n1ref);
+            ROS_INFO_STREAM("Node 2: " << n2ref);
             ROS_INFO_STREAM("Connecting edge " << edge);
         }
     };
